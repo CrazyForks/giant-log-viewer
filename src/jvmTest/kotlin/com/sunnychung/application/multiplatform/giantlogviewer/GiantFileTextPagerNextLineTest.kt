@@ -123,6 +123,54 @@ class GiantFileTextPagerNextLineTest {
 //            assertEquals(fileLength.toLong(), pager.viewportStartCharPosition)
         }
     }
+
+    @Test
+    fun shortLine() {
+        val fileLength = 5
+        val random = Random(24680)
+        val fileContent = "abcdE"
+//        println(fileContent)
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+            pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
+            (0 .. 1).forEach { loop ->
+                println("pos: ${pager.viewportStartCharPosition}")
+                assertEquals(0, pager.viewportStartCharPosition, "loop $loop")
+                assertListOfStringStartWith(
+                    listOf(fileContent),
+                    pager.textInViewport.value,
+                    "loop $loop"
+                )
+
+                pager.moveToNextLine()
+            }
+        }
+    }
+
+    @Test
+    fun emptyFile() {
+        val fileLength = 0
+        val random = Random(24680)
+        val fileContent = ""
+//        println(fileContent)
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+            pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
+            (0 .. 1).forEach { loop ->
+                println("pos: ${pager.viewportStartCharPosition}")
+                assertEquals(0, pager.viewportStartCharPosition, "loop $loop")
+                assertListOfStringStartWith(
+                    emptyList(),
+                    pager.textInViewport.value,
+                    "loop $loop"
+                )
+
+                pager.moveToNextLine()
+            }
+        }
+    }
 }
 
 fun assertListOfStringStartWith(expected: List<CharSequence>, actual: List<CharSequence>, message: String) {

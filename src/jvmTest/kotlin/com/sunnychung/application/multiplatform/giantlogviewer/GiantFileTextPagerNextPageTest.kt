@@ -12,27 +12,8 @@ import kotlin.test.assertEquals
 
 class GiantFileTextPagerNextPageTest {
 
-    @Test
-    fun multipleLines() {
-        val fileLength = 10000
-        val random = Random(24680)
-        val fileContent = (0 ..< fileLength).joinToString("") {
-            val newLineFactor = if (random.nextInt(13) == 0) {
-                8
-            } else {
-                131
-            }
-            if (random.nextInt(newLineFactor) == 0) {
-                return@joinToString "\n"
-            }
-
-            if (it % 10 == 0) {
-                ('0'.code + ((it / 10) % 10)).toChar().toString()
-            } else {
-                ('a'.code + (it % 10)).toChar().toString()
-            }
-        }
-//        println(fileContent)
+    fun testSimplePages(fileContent: String) {
+        val fileLength = fileContent.length
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
@@ -93,6 +74,78 @@ class GiantFileTextPagerNextPageTest {
                 throw StackOverflowError("Infinite loop detected")
             }
 //            assertEquals(fileLength.toLong(), pager.viewportStartCharPosition)
+        }
+    }
+
+    @Test
+    fun multipleLines() {
+        val fileLength = 10000
+        val random = Random(24680)
+        val fileContent = (0 ..< fileLength).joinToString("") {
+            val newLineFactor = if (random.nextInt(13) == 0) {
+                8
+            } else {
+                131
+            }
+            if (random.nextInt(newLineFactor) == 0) {
+                return@joinToString "\n"
+            }
+
+            if (it % 10 == 0) {
+                ('0'.code + ((it / 10) % 10)).toChar().toString()
+            } else {
+                ('a'.code + (it % 10)).toChar().toString()
+            }
+        }
+//        println(fileContent)
+        testSimplePages(fileContent)
+    }
+
+    @Test
+    fun singlePage() {
+        val fileLength = 60
+        val random = Random(24680)
+        val fileContent = (0 ..< fileLength).joinToString("") {
+            val newLineFactor = if (random.nextInt(3) != 0) {
+                8
+            } else {
+                131
+            }
+            if (random.nextInt(newLineFactor) == 0) {
+                return@joinToString "\n"
+            }
+
+            if (it % 10 == 0) {
+                ('0'.code + ((it / 10) % 10)).toChar().toString()
+            } else {
+                ('a'.code + (it % 10)).toChar().toString()
+            }
+        }
+//        println(fileContent)
+        testSimplePages(fileContent)
+    }
+
+    @Test
+    fun emptyFile() {
+        val fileLength = 0
+        val random = Random(24680)
+        val fileContent = ""
+//        println(fileContent)
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+            pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
+            (0 .. 1).forEach { loop ->
+                println("pos: ${pager.viewportStartCharPosition}")
+                assertEquals(0, pager.viewportStartCharPosition, "loop $loop")
+                assertListOfStringStartWith(
+                    emptyList(),
+                    pager.textInViewport.value,
+                    "loop $loop"
+                )
+
+                pager.moveToNextPage()
+            }
         }
     }
 }
