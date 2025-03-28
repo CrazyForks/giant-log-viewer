@@ -9,6 +9,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 val lineSeparatorRegex = "\r?\n".toRegex()
@@ -117,6 +118,10 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
 
     fun moveToNextLine() {
         lock.write {
+            val numOfRowsInViewport = numOfRowsInViewport
+            if (numOfRowsInViewport == 0) {
+                return
+            }
             val maxNumOfCharInARow = maxNumOfCharInARow()
             val maxNumOfCharInViewport = maxNumOfCharInARow * numOfRowsInViewport
             val manyText = fileReader.readString(viewportStartCharPosition, maxNumOfCharInViewport + 3 /* UTF-8 tail */).first
@@ -126,11 +131,44 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
                 firstLineSeparator.endExclusive
             } else {
                 // the next row is still the current line or does not exist (end of file)
+                // FIXME what if `manyText` starts with the end part of a previous line?
                 val (rowStarts, lastRowWidth) = textLayouter.layoutOneLine(manyText, viewport.width.toFloat(), 0f, 0)
                 rowStarts.getOrNull(0)
             }
             if (nextRowStart != null) {
                 viewportStartCharPosition += nextRowStart // FIXME UTF-8 offset diff in manyText
+                rebuildCacheIfInvalid()
+            }
+        }
+    }
+
+    fun moveToNextPage() {
+        lock.write {
+            val numOfRowsInViewport = floor(viewport.height / rowHeight()).roundToInt()
+            if (numOfRowsInViewport == 0) {
+                return
+            }
+            val maxNumOfCharInARow = maxNumOfCharInARow()
+            val maxNumOfCharInViewport = maxNumOfCharInARow * numOfRowsInViewport
+            val manyText = fileReader.readString(viewportStartCharPosition, maxNumOfCharInViewport + 3 /* UTF-8 tail */).first
+            val lineSeparators = lineSeparatorRegex.findAll(manyText).take(numOfRowsInViewport + 1)
+            var start = 0
+            // FIXME what if `manyText` starts with the end part of a previous line?
+            var rowStarts = lineSeparators.flatMap { // this works only if running sequential (NOT in parallel)
+                val line = manyText.subSequence(start ..< it.range.first)
+                val (rowStarts, lastRowWidth) = textLayouter.layoutOneLine(line, viewport.width.toFloat(), 0f, start)
+                start = it.range.endExclusive
+                rowStarts + listOf(it.range.endExclusive)
+            }.toList()
+            if (start < manyText.length && rowStarts.size < numOfRowsInViewport + 1) {
+                val line = manyText.subSequence(start ..< manyText.length)
+                val (endRowStarts, lastRowWidth) = textLayouter.layoutOneLine(line, viewport.width.toFloat(), 0f, start)
+                rowStarts += endRowStarts
+            }
+            println(rowStarts)
+            val nextPageStart = rowStarts.getOrNull((numOfRowsInViewport - 1).coerceAtMost(rowStarts.lastIndex))
+            if (nextPageStart != null) {
+                viewportStartCharPosition += nextPageStart // FIXME UTF-8 offset diff in manyText
                 rebuildCacheIfInvalid()
             }
         }
