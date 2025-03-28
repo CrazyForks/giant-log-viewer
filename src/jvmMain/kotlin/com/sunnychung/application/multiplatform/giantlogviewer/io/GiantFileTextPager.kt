@@ -18,6 +18,7 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
     private val lock = ReentrantReadWriteLock()
 
     var viewportStartCharPosition: Long = 0L
+        get() = lock.read { field }
         set(value) {
             lock.write {
                 field = value
@@ -29,6 +30,7 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
      * Pair of width and height.
      */
     var viewport: Viewport = Viewport(0, 0, 1f)
+        get() = lock.read { field }
         set(value) {
             lock.write {
                 val rowHeight = rowHeight()
@@ -45,6 +47,7 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
     private val viewportTextMutableStateFlow: MutableStateFlow<List<CharSequence>> = MutableStateFlow(emptyList())
 
     val textInViewport: StateFlow<List<CharSequence>> = viewportTextMutableStateFlow
+        get() = lock.read { field }
 
     private var viewportCacheKey: ViewportCacheKey = ViewportCacheKey(viewport, viewportStartCharPosition)
 
