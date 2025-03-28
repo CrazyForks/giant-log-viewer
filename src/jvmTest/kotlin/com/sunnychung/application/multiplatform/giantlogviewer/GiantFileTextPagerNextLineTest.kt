@@ -171,6 +171,82 @@ class GiantFileTextPagerNextLineTest {
             }
         }
     }
+
+    @Test
+    fun multipleBlocks() {
+        val fileLength = 100000
+        val random = Random(24681)
+        val fileContent = (0 ..< fileLength).joinToString("") {
+            val newLineFactor = if (random.nextInt(13) == 0) {
+                8
+            } else {
+                131
+            }
+            if (random.nextInt(newLineFactor) == 0) {
+                return@joinToString "\n"
+            }
+
+            if (it % 10 == 0) {
+                ('0'.code + ((it / 10) % 10)).toChar().toString()
+            } else {
+                ('a'.code + (it % 10)).toChar().toString()
+            }
+        }
+//        println(fileContent)
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath, 1024)
+            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+            pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
+            var start = 0
+            var loop = 0
+            while (loop < fileLength && start < fileLength) {
+                assertEquals(start.toLong(), pager.viewportStartCharPosition)
+                var pageEnd = start.coerceAtMost(fileLength)
+                var rowBreaks = 0
+                var firstRowBreakPos = -1
+                var col = 0
+                (start ..< (start + 23 * 13).coerceAtMost(fileLength)).forEach {
+                    if (rowBreaks < 13) {
+                        if (fileContent[it] == '\n') {
+                            ++rowBreaks
+                            col = 0
+                            if (rowBreaks == 1) {
+                                firstRowBreakPos = it + 1
+                            }
+                        } else {
+                            ++col
+                            if (col > 23) {
+                                ++rowBreaks
+                                col = 0
+                                if (rowBreaks == 1) {
+                                    firstRowBreakPos = it
+                                }
+                            }
+                        }
+                        pageEnd = it
+                    }
+                }
+
+                assertListOfStringStartWith(
+                    fileContent.substring(start..< pageEnd).split(lineSeparatorRegex).flatMap { it.windowed(23, 23, true) },
+                    pager.textInViewport.value,
+                    "range: [$start, $pageEnd)"
+                )
+
+                pager.moveToNextLine()
+                start = if (firstRowBreakPos > 0) {
+                    firstRowBreakPos
+                } else {
+                    fileLength
+                }
+                ++loop
+            }
+            if (loop >= fileLength) {
+                throw StackOverflowError("Infinite loop detected")
+            }
+//            assertEquals(fileLength.toLong(), pager.viewportStartCharPosition)
+        }
+    }
 }
 
 fun assertListOfStringStartWith(expected: List<CharSequence>, actual: List<CharSequence>, message: String) {

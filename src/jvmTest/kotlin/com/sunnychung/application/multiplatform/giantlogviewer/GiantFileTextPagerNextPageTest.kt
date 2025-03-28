@@ -12,10 +12,10 @@ import kotlin.test.assertEquals
 
 class GiantFileTextPagerNextPageTest {
 
-    fun testSimplePages(fileContent: String) {
+    fun testSimplePages(fileContent: String, blockSize: Int = 1 * 1024 * 1024) {
         val fileLength = fileContent.length
         createTestFile(fileContent) { file ->
-            val fileReader = GiantFileReader(file.absolutePath)
+            val fileReader = GiantFileReader(file.absolutePath, blockSize)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var start = 0
@@ -147,5 +147,29 @@ class GiantFileTextPagerNextPageTest {
                 pager.moveToNextPage()
             }
         }
+    }
+
+    @Test
+    fun multipleBlocks() {
+        val fileLength = 100000
+        val random = Random(24682)
+        val fileContent = (0 ..< fileLength).joinToString("") {
+            val newLineFactor = if (random.nextInt(13) == 0) {
+                8
+            } else {
+                131
+            }
+            if (random.nextInt(newLineFactor) == 0) {
+                return@joinToString "\n"
+            }
+
+            if (it % 10 == 0) {
+                ('0'.code + ((it / 10) % 10)).toChar().toString()
+            } else {
+                ('a'.code + (it % 10)).toChar().toString()
+            }
+        }
+//        println(fileContent)
+        testSimplePages(fileContent = fileContent, blockSize = 1024)
     }
 }
