@@ -23,6 +23,7 @@ class GiantFileTextPagerNextPageTest {
             while (loop < fileLength && start < fileLength) {
                 println("pos: ${pager.viewportStartCharPosition}")
                 assertEquals(start.toLong(), pager.viewportStartCharPosition, "loop $loop")
+                assertEquals(start.toLong(), pager.viewportStartBytePosition, "loop $loop")
                 var pageEnd = start.coerceAtMost(fileLength)
                 var visibleEnd = start.coerceAtMost(fileLength)
                 var rowBreaks = 0
@@ -138,6 +139,7 @@ class GiantFileTextPagerNextPageTest {
             (0 .. 1).forEach { loop ->
                 println("pos: ${pager.viewportStartCharPosition}")
                 assertEquals(0, pager.viewportStartCharPosition, "loop $loop")
+                assertEquals(0, pager.viewportStartBytePosition, "loop $loop")
                 assertListOfStringStartWith(
                     emptyList(),
                     pager.textInViewport.value,
@@ -170,6 +172,6 @@ class GiantFileTextPagerNextPageTest {
             }
         }
 //        println(fileContent)
-        testSimplePages(fileContent = fileContent, blockSize = 1024)
+        testSimplePages(fileContent = fileContent, blockSize = 4096)
     }
 }

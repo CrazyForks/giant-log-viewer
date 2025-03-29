@@ -5,6 +5,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextP
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.io.lineSeparatorRegex
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
+import com.sunnychung.application.multiplatform.giantlogviewer.util.DivisibleWidthCharMeasurer
 import com.sunnychung.application.multiplatform.giantlogviewer.util.FixedWidthCharMeasurer
 import kotlin.random.Random
 import kotlin.test.Test
@@ -30,6 +31,7 @@ class GiantFileTextPagerNextLineTest {
             var loop = 0
             while (loop < fileLength / 10 && start < fileLength) {
                 assertEquals(start.toLong(), pager.viewportStartCharPosition)
+                assertEquals(start.toLong(), pager.viewportStartBytePosition)
                 val pageEnd = (start + 23 * 13).coerceAtMost(fileLength)
                 assertListOfStringStartWith(
                     fileContent.substring(start..< pageEnd).windowed(23, 23, true),
@@ -73,49 +75,29 @@ class GiantFileTextPagerNextLineTest {
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
-            var start = 0
+            val nextLineState = NextLineState(fileContent = fileContent)
             var loop = 0
-            while (loop < fileLength && start < fileLength) {
-                assertEquals(start.toLong(), pager.viewportStartCharPosition)
-                var pageEnd = start.coerceAtMost(fileLength)
-                var rowBreaks = 0
-                var firstRowBreakPos = -1
-                var col = 0
-                (start ..< (start + 23 * 13).coerceAtMost(fileLength)).forEach {
-                    if (rowBreaks < 13) {
-                        if (fileContent[it] == '\n') {
-                            ++rowBreaks
-                            col = 0
-                            if (rowBreaks == 1) {
-                                firstRowBreakPos = it + 1
-                            }
-                        } else {
-                            ++col
-                            if (col > 23) {
-                                ++rowBreaks
-                                col = 0
-                                if (rowBreaks == 1) {
-                                    firstRowBreakPos = it
-                                }
-                            }
-                        }
-                        pageEnd = it
+            with (nextLineState) {
+                while (loop < fileLength && start < fileLength) {
+                    assertEquals(start.toLong(), pager.viewportStartCharPosition)
+                    assertEquals(start.toLong(), pager.viewportStartBytePosition)
+                    moveToNextLine(this)
+
+                    assertListOfStringStartWith(
+                        fileContent.substring(start ..< visibleEnd).split(lineSeparatorRegex)
+                            .flatMap { it.windowed(23, 23, true) },
+                        pager.textInViewport.value,
+                        "range: [$start, $visibleEnd)"
+                    )
+
+                    pager.moveToNextLine()
+                    start = if (firstRowBreakPos > 0) {
+                        firstRowBreakPos
+                    } else {
+                        fileLength
                     }
+                    ++loop
                 }
-
-                assertListOfStringStartWith(
-                    fileContent.substring(start..< pageEnd).split(lineSeparatorRegex).flatMap { it.windowed(23, 23, true) },
-                    pager.textInViewport.value,
-                    "range: [$start, $pageEnd)"
-                )
-
-                pager.moveToNextLine()
-                start = if (firstRowBreakPos > 0) {
-                    firstRowBreakPos
-                } else {
-                    fileLength
-                }
-                ++loop
             }
             if (loop >= fileLength) {
                 throw StackOverflowError("Infinite loop detected")
@@ -137,6 +119,7 @@ class GiantFileTextPagerNextLineTest {
             (0 .. 1).forEach { loop ->
                 println("pos: ${pager.viewportStartCharPosition}")
                 assertEquals(0, pager.viewportStartCharPosition, "loop $loop")
+                assertEquals(0, pager.viewportStartBytePosition, "loop $loop")
                 assertListOfStringStartWith(
                     listOf(fileContent),
                     pager.textInViewport.value,
@@ -161,6 +144,7 @@ class GiantFileTextPagerNextLineTest {
             (0 .. 1).forEach { loop ->
                 println("pos: ${pager.viewportStartCharPosition}")
                 assertEquals(0, pager.viewportStartCharPosition, "loop $loop")
+                assertEquals(0, pager.viewportStartBytePosition, "loop $loop")
                 assertListOfStringStartWith(
                     emptyList(),
                     pager.textInViewport.value,
@@ -194,52 +178,253 @@ class GiantFileTextPagerNextLineTest {
         }
 //        println(fileContent)
         createTestFile(fileContent) { file ->
-            val fileReader = GiantFileReader(file.absolutePath, 1024)
+            val fileReader = GiantFileReader(file.absolutePath, 4096)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
-            var start = 0
+            val nextLineState = NextLineState(fileContent = fileContent)
             var loop = 0
-            while (loop < fileLength && start < fileLength) {
-                assertEquals(start.toLong(), pager.viewportStartCharPosition)
-                var pageEnd = start.coerceAtMost(fileLength)
-                var rowBreaks = 0
-                var firstRowBreakPos = -1
-                var col = 0
-                (start ..< (start + 23 * 13).coerceAtMost(fileLength)).forEach {
-                    if (rowBreaks < 13) {
-                        if (fileContent[it] == '\n') {
-                            ++rowBreaks
-                            col = 0
-                            if (rowBreaks == 1) {
-                                firstRowBreakPos = it + 1
-                            }
-                        } else {
-                            ++col
-                            if (col > 23) {
-                                ++rowBreaks
-                                col = 0
-                                if (rowBreaks == 1) {
-                                    firstRowBreakPos = it
-                                }
-                            }
-                        }
-                        pageEnd = it
+            with (nextLineState) {
+                while (loop < fileLength && start < fileLength) {
+                    assertEquals(start.toLong(), pager.viewportStartCharPosition)
+                    assertEquals(start.toLong(), pager.viewportStartBytePosition)
+                    moveToNextLine(this)
+
+                    assertListOfStringStartWith(
+                        fileContent.substring(start ..< visibleEnd).split(lineSeparatorRegex)
+                            .flatMap { it.windowed(23, 23, true) },
+                        pager.textInViewport.value,
+                        "range: [$start, $visibleEnd)"
+                    )
+
+                    pager.moveToNextLine()
+                    start = if (firstRowBreakPos > 0) {
+                        firstRowBreakPos
+                    } else {
+                        fileLength
                     }
+                    ++loop
                 }
+            }
+            if (loop >= fileLength) {
+                throw StackOverflowError("Infinite loop detected")
+            }
+//            assertEquals(fileLength.toLong(), pager.viewportStartCharPosition)
+        }
+    }
 
-                assertListOfStringStartWith(
-                    fileContent.substring(start..< pageEnd).split(lineSeparatorRegex).flatMap { it.windowed(23, 23, true) },
-                    pager.textInViewport.value,
-                    "range: [$start, $pageEnd)"
-                )
+    @Test
+    fun unicodeSimple() {
+        val lines = listOf(
+            "你好呀",
+            "啲Emoji好q麻煩",
+            "😄😄...😇🤣🤯🤬🫡🫠😵",
+            "zzz😪",
+            "🤑🤑$$",
+            "🍙",
+        )
+        val fileContent = lines.joinToString("\n")
+        val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
+        val nextLineState = NextLineState(fileContent = fileContent)
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
+            var loop = 0
+            with (nextLineState) {
+                while (loop < fileLength && start < fileLength) {
+                    assertEquals(start.toLong(), pager.viewportStartCharPosition)
+                    assertEquals(
+                        fileContent.substring(0..<start).toByteArray(Charsets.UTF_8).size.toLong(),
+                        pager.viewportStartBytePosition
+                    )
+                    moveToNextLine(nextLineState)
 
-                pager.moveToNextLine()
-                start = if (firstRowBreakPos > 0) {
-                    firstRowBreakPos
-                } else {
-                    fileLength
+                    assertListOfStringStartWith(
+                        fileContent.substring(start..visibleEnd).split(lineSeparatorRegex),
+                        pager.textInViewport.value,
+                        "range: [$start, $visibleEnd]"
+                    )
+
+                    pager.moveToNextLine()
+                    start = if (firstRowBreakPos > 0) {
+                        firstRowBreakPos /*-
+                        fileContent.subSequence(0..<firstRowBreakPos)
+                            .count { it.isLowSurrogate() }*/
+                    } else {
+                        fileLength
+                    }
+                    ++loop
                 }
-                ++loop
+            }
+            if (loop >= fileLength) {
+                throw StackOverflowError("Infinite loop detected")
+            }
+//            assertEquals(fileLength.toLong(), pager.viewportStartCharPosition)
+        }
+    }
+
+    @Test
+    fun unicodeAcrossRowBreaks() {
+        val lines = listOf(
+            "喂你好",
+            "啲Emoji好q麻煩",
+            "😄😄...😇🤣🤯🤬🫡🫠😵",
+            "zzz😪",
+            "🤑🤑$$",
+            "🍙",
+        )
+        val multipliedLines = lines.flatMap { line ->
+            (23 - 9 .. 23 + 9 + 2).map { numOfPrefixChars ->
+                (0 ..< numOfPrefixChars).joinToString("") {
+                    ('0'.code + (it % 10)).toChar().toString()
+                } + line
+            }
+        }
+        val fileContent = multipliedLines.joinToString("\n")
+        val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
+        val nextLineState = NextLineState(fileContent = fileContent)
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
+            var loop = 0
+            with (nextLineState) {
+                while (loop < fileLength && start < fileLength) {
+                    assertEquals(start.toLong(), pager.viewportStartCharPosition)
+                    assertEquals(
+                        fileContent.substring(0..< start).toByteArray(Charsets.UTF_8).size.toLong(),
+                        pager.viewportStartBytePosition
+                    )
+                    moveToNextLine(nextLineState)
+
+                    assertListOfStringStartWith(
+                        fileContent.substring(start..visibleEnd).split(lineSeparatorRegex)
+                            .flatMap { it.chunkedUnicode(23) }
+                            .take(13),
+                        pager.textInViewport.value,
+                        "range: [$start, $visibleEnd]"
+                    )
+
+                    pager.moveToNextLine()
+                    start = if (firstRowBreakPos > 0) {
+                        firstRowBreakPos
+                    } else {
+                        fileLength
+                    }
+                    ++loop
+                }
+            }
+            if (loop >= fileLength) {
+                throw StackOverflowError("Infinite loop detected")
+            }
+//            assertEquals(fileLength.toLong(), pager.viewportStartCharPosition)
+        }
+    }
+
+    @Test
+    fun unicodeFullPage() {
+        val random = Random(24683)
+        val charset = "零一二三四五六七八九"
+        val fileContent = (0 ..< 10000).joinToString("") {
+            val newLineFactor = if (random.nextInt(13) == 0) {
+                8
+            } else {
+                131
+            }
+            if (random.nextInt(newLineFactor) == 0) {
+                return@joinToString "\n"
+            }
+
+            charset[it % 10].toString()
+        }
+        val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
+        val nextLineState = NextLineState(fileContent = fileContent)
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
+            var loop = 0
+            with (nextLineState) {
+                while (loop < fileLength && start < fileLength) {
+                    assertEquals(start.toLong(), pager.viewportStartCharPosition)
+                    assertEquals(
+                        fileContent.substring(0..< start).toByteArray(Charsets.UTF_8).size.toLong(),
+                        pager.viewportStartBytePosition
+                    )
+                    moveToNextLine(nextLineState)
+
+                    assertListOfStringStartWith(
+                        fileContent.substring(start..visibleEnd).split(lineSeparatorRegex)
+                            .flatMap { it.chunkedUnicode(23) }
+                            .take(13),
+                        pager.textInViewport.value,
+                        "range: [$start, $visibleEnd]"
+                    )
+
+                    pager.moveToNextLine()
+                    start = if (firstRowBreakPos > 0) {
+                        firstRowBreakPos
+                    } else {
+                        fileLength
+                    }
+                    ++loop
+                }
+            }
+            if (loop >= fileLength) {
+                throw StackOverflowError("Infinite loop detected")
+            }
+//            assertEquals(fileLength.toLong(), pager.viewportStartCharPosition)
+        }
+    }
+
+    @Test
+    fun unicodeMultiBlocks() {
+        val random = Random(24683)
+        val charset = "零一二三四五六七八九ABCDabc".map { it.toString() } + listOf("😄", "😄", "😇", "🤣", "🤯", "🤬", "🫡", "🫠", "😵")
+        val fileContent = (0 ..< 100000).joinToString("") {
+            val newLineFactor = if (random.nextInt(13) == 0) {
+                8
+            } else {
+                131
+            }
+            if (random.nextInt(newLineFactor) == 0) {
+                return@joinToString "\n"
+            }
+
+            charset[random.nextInt(0, charset.size)]
+        }
+        val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
+        val nextLineState = NextLineState(fileContent = fileContent)
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath, 4096)
+            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
+            var loop = 0
+            with (nextLineState) {
+                while (loop < fileLength && start < fileLength) {
+                    assertEquals(start.toLong(), pager.viewportStartCharPosition)
+                    assertEquals(
+                        fileContent.substring(0..< start).toByteArray(Charsets.UTF_8).size.toLong(),
+                        pager.viewportStartBytePosition
+                    )
+                    moveToNextLine(nextLineState)
+
+                    assertListOfStringStartWith(
+                        fileContent.substring(start..visibleEnd).split(lineSeparatorRegex)
+                            .flatMap { it.chunkedUnicode(23) }
+                            .take(13),
+                        pager.textInViewport.value,
+                        "range: [$start, $visibleEnd]"
+                    )
+
+                    pager.moveToNextLine()
+                    start = if (firstRowBreakPos > 0) {
+                        firstRowBreakPos
+                    } else {
+                        fileLength
+                    }
+                    ++loop
+                }
             }
             if (loop >= fileLength) {
                 throw StackOverflowError("Infinite loop detected")
@@ -251,7 +436,7 @@ class GiantFileTextPagerNextLineTest {
 
 fun assertListOfStringStartWith(expected: List<CharSequence>, actual: List<CharSequence>, message: String) {
     val message = "$message - $expected VS $actual"
-    assert(expected.size <= actual.size) { message }
+    assert(expected.size <= actual.size) { "$message - ${expected.size} should <= ${actual.size}" }
     expected.forEachIndexed { index, expectedText ->
         if (index < expected.lastIndex) {
             assertEquals(expectedText, actual[index], message)
@@ -259,4 +444,76 @@ fun assertListOfStringStartWith(expected: List<CharSequence>, actual: List<CharS
             assert(actual[index].startsWith(expectedText)) { message }
         }
     }
+}
+
+private fun moveToNextLine(state: NextLineState) {
+    with (state) {
+        visibleEnd = start.coerceAtMost(contentLength)
+        rowBreaks = 0
+        firstRowBreakPos = -1
+        col = 0
+
+        (start ..< (start + 23 * 13 + 1).coerceAtMost(contentLength)).forEach {
+            if (rowBreaks < 13) {
+                if (fileContent[it] == '\n') {
+                    ++rowBreaks
+                    col = 0
+                    if (rowBreaks == 1) {
+                        firstRowBreakPos = it + 1
+                    }
+                } else if (!fileContent[it].isLowSurrogate()) { // a hi-lo surrogate pair should be processed only once
+                    val charSpan = if (fileContent[it].code <= 126) 1 else 2
+                    col += charSpan
+                    if (col > 23) {
+                        ++rowBreaks
+                        col = charSpan
+                        if (rowBreaks == 1) {
+                            firstRowBreakPos = it
+                        }
+                    }
+                }
+                visibleEnd = it - if (fileContent[it].isHighSurrogate()) 1 else 0
+            }
+        }
+    }
+}
+
+private data class NextLineState(
+    var start: Int = 0,
+//    var loop: Int = 0,
+    var col: Int = 0,
+    var visibleEnd: Int = 0,
+    var rowBreaks: Int = 0,
+    var firstRowBreakPos: Int = -1,
+    var fileContent: String,
+
+) {
+    val contentLength: Int = fileContent.length
+}
+
+fun CharSequence.chunkedUnicode(chunkSize: Int): List<CharSequence> {
+    val chunked = mutableListOf<CharSequence>()
+    var start = 0
+    var len = 0
+    indices.forEach {
+        if (this[it].isHighSurrogate()) {
+            return@forEach
+        }
+        val charSpan = if (this[it].code <= 126) 1 else 2
+        len += charSpan
+        if (len > chunkSize) {
+            val lastEnd = it - 1 - if (this[it - 1].isHighSurrogate()) 1 else 0
+            chunked += subSequence(start .. lastEnd)
+            len = charSpan
+            start = lastEnd + 1
+        } else if (len == chunkSize) {
+            chunked += subSequence(start .. it)
+            len = 0
+            start = it + 1
+        }
+    }
+    if (start < length) {
+        chunked += subSequence(start ..< length)
+    }
+    return chunked
 }

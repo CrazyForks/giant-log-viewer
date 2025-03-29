@@ -119,6 +119,8 @@ class GiantFileReader(private val filePath: String, private val blockSize: Int =
      *
      * It is not guaranteed that exactly `length` bytes would be read.
      *
+     * @param startBytePosition 0-based, in bytes
+     * @param length in bytes
      * @return pair of decoded string and the range of absolute byte positions of the decoded string
      */
     fun readString(startBytePosition: Long, length: Int): Pair<String, LongRange> {
