@@ -171,7 +171,7 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
             }
             val maxNumOfCharInARow = maxNumOfCharInARow()
             val maxNumOfCharInViewport = maxNumOfCharInARow * numOfRowsInViewport
-            val (manyText, byteRange) = fileReader.readString(viewportStartBytePosition, maxNumOfCharInViewport + 3 /* UTF-8 tail */)
+            val (manyText, byteRange) = fileReader.readString(viewportStartBytePosition, maxNumOfCharInViewport * 4 + 3 /* UTF-8 tail */)
             val lineSeparators = lineSeparatorRegex.findAll(manyText).take(numOfRowsInViewport + 1)
             var start = 0
             // FIXME what if `manyText` starts with the end part of a previous line?

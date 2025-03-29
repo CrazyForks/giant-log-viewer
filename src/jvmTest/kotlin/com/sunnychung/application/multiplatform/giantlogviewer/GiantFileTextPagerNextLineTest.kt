@@ -75,13 +75,13 @@ class GiantFileTextPagerNextLineTest {
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
-            val nextLineState = NextLineState(fileContent = fileContent)
+            val pageState = PageState(fileContent = fileContent)
             var loop = 0
-            with (nextLineState) {
+            with (pageState) {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(start.toLong(), pager.viewportStartBytePosition)
-                    moveToNextLine(this)
+                    updatePageState(this)
 
                     assertListOfStringStartWith(
                         fileContent.substring(start ..< visibleEnd).split(lineSeparatorRegex)
@@ -181,13 +181,13 @@ class GiantFileTextPagerNextLineTest {
             val fileReader = GiantFileReader(file.absolutePath, 4096)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
-            val nextLineState = NextLineState(fileContent = fileContent)
+            val pageState = PageState(fileContent = fileContent)
             var loop = 0
-            with (nextLineState) {
+            with (pageState) {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(start.toLong(), pager.viewportStartBytePosition)
-                    moveToNextLine(this)
+                    updatePageState(this)
 
                     assertListOfStringStartWith(
                         fileContent.substring(start ..< visibleEnd).split(lineSeparatorRegex)
@@ -224,20 +224,20 @@ class GiantFileTextPagerNextLineTest {
         )
         val fileContent = lines.joinToString("\n")
         val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
-        val nextLineState = NextLineState(fileContent = fileContent)
+        val pageState = PageState(fileContent = fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var loop = 0
-            with (nextLineState) {
+            with (pageState) {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(
                         fileContent.substring(0..<start).toByteArray(Charsets.UTF_8).size.toLong(),
                         pager.viewportStartBytePosition
                     )
-                    moveToNextLine(nextLineState)
+                    updatePageState(pageState)
 
                     assertListOfStringStartWith(
                         fileContent.substring(start..visibleEnd).split(lineSeparatorRegex),
@@ -282,20 +282,20 @@ class GiantFileTextPagerNextLineTest {
         }
         val fileContent = multipliedLines.joinToString("\n")
         val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
-        val nextLineState = NextLineState(fileContent = fileContent)
+        val pageState = PageState(fileContent = fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var loop = 0
-            with (nextLineState) {
+            with (pageState) {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(
                         fileContent.substring(0..< start).toByteArray(Charsets.UTF_8).size.toLong(),
                         pager.viewportStartBytePosition
                     )
-                    moveToNextLine(nextLineState)
+                    updatePageState(pageState)
 
                     assertListOfStringStartWith(
                         fileContent.substring(start..visibleEnd).split(lineSeparatorRegex)
@@ -338,20 +338,20 @@ class GiantFileTextPagerNextLineTest {
             charset[it % 10].toString()
         }
         val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
-        val nextLineState = NextLineState(fileContent = fileContent)
+        val pageState = PageState(fileContent = fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var loop = 0
-            with (nextLineState) {
+            with (pageState) {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(
                         fileContent.substring(0..< start).toByteArray(Charsets.UTF_8).size.toLong(),
                         pager.viewportStartBytePosition
                     )
-                    moveToNextLine(nextLineState)
+                    updatePageState(pageState)
 
                     assertListOfStringStartWith(
                         fileContent.substring(start..visibleEnd).split(lineSeparatorRegex)
@@ -394,20 +394,20 @@ class GiantFileTextPagerNextLineTest {
             charset[random.nextInt(0, charset.size)]
         }
         val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
-        val nextLineState = NextLineState(fileContent = fileContent)
+        val pageState = PageState(fileContent = fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath, 4096)
             val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var loop = 0
-            with (nextLineState) {
+            with (pageState) {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(
                         fileContent.substring(0..< start).toByteArray(Charsets.UTF_8).size.toLong(),
                         pager.viewportStartBytePosition
                     )
-                    moveToNextLine(nextLineState)
+                    updatePageState(pageState)
 
                     assertListOfStringStartWith(
                         fileContent.substring(start..visibleEnd).split(lineSeparatorRegex)
@@ -446,8 +446,9 @@ fun assertListOfStringStartWith(expected: List<CharSequence>, actual: List<CharS
     }
 }
 
-private fun moveToNextLine(state: NextLineState) {
+internal fun updatePageState(state: PageState) {
     with (state) {
+        pageEnd = start.coerceAtMost(contentLength)
         visibleEnd = start.coerceAtMost(contentLength)
         rowBreaks = 0
         firstRowBreakPos = -1
@@ -461,6 +462,9 @@ private fun moveToNextLine(state: NextLineState) {
                     if (rowBreaks == 1) {
                         firstRowBreakPos = it + 1
                     }
+                    if (rowBreaks <= 12) {
+                        pageEnd = it + 1
+                    }
                 } else if (!fileContent[it].isLowSurrogate()) { // a hi-lo surrogate pair should be processed only once
                     val charSpan = if (fileContent[it].code <= 126) 1 else 2
                     col += charSpan
@@ -470,24 +474,32 @@ private fun moveToNextLine(state: NextLineState) {
                         if (rowBreaks == 1) {
                             firstRowBreakPos = it
                         }
+                        if (rowBreaks <= 12) {
+                            pageEnd = it
+                        }
                     }
                 }
                 visibleEnd = it - if (fileContent[it].isHighSurrogate()) 1 else 0
             }
         }
+        if (pageEnd == start) {
+            pageEnd = fileLength
+        }
     }
 }
 
-private data class NextLineState(
+internal data class PageState(
     var start: Int = 0,
 //    var loop: Int = 0,
     var col: Int = 0,
-    var visibleEnd: Int = 0,
+    var visibleEnd: Int = 0, // inclusive
+    var pageEnd: Int = 0, // exclusive
     var rowBreaks: Int = 0,
     var firstRowBreakPos: Int = -1,
     var fileContent: String,
 
 ) {
+    val fileLength: Int = fileContent.toByteArray(Charsets.UTF_8).size
     val contentLength: Int = fileContent.length
 }
 
