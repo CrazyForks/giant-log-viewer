@@ -3,7 +3,6 @@ package com.sunnychung.application.multiplatform.giantlogviewer
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
-import com.sunnychung.application.multiplatform.giantlogviewer.io.lineSeparatorRegex
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.util.DivisibleWidthCharMeasurer
 import kotlin.random.Random
@@ -404,4 +403,168 @@ class GiantFileTextPagerPrevPageTest {
             assertEquals(0L, pager.viewportStartBytePosition)
         }
     }
+
+    @Test
+    fun unicode() {
+        val fileContent = """
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            01234567890123456789你好👋
+            1中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字
+            4中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭
+            14中文字中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭
+            19中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字
+            25中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字
+            31中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字👍🫤🌭中文字
+            34
+        """.trimIndent()
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager =
+                GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
+            with(PageState(fileContent = fileContent)) {
+                var iteration = 0
+                repeat(126) {
+                    pager.moveToNextLine()
+                }
+                moveToRow(126)
+                // emoji 2 chars, otherwise 1 char
+                assertEquals(start.toLong() /* 1640L */, pager.viewportStartCharPosition, "after next")
+                // chinese char 3 bytes, emoji 4 bytes, otherwise 1 byte
+                assertEquals(startBytePos() /* 2398L */, pager.viewportStartBytePosition, "after next")
+
+                pager.moveToPrevPage()
+                ++iteration
+                moveToRow(114)
+                assertEquals(start.toLong() /* 1457L */, pager.viewportStartCharPosition, "after prev $iteration")
+                assertEquals(startBytePos() /* 1977L */, pager.viewportStartBytePosition, "after prev $iteration")
+
+                pager.moveToNextLine()
+
+                pager.moveToPrevPage()
+                ++iteration
+                moveToRow(103)
+                assertEquals(start.toLong() /* 1296L*/, pager.viewportStartCharPosition, "after prev $iteration")
+                assertEquals(startBytePos() /* 1604L */, pager.viewportStartBytePosition, "after prev $iteration")
+
+                repeat(30) {
+                    pager.moveToNextLine()
+                }
+
+                pager.moveToPrevPage()
+                ++iteration
+                moveToRow(121)
+                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+                assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
+
+                pager.moveToPrevPage()
+                ++iteration
+                moveToRow(109)
+                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+                assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
+
+                pager.moveToPrevPage()
+                ++iteration
+                moveToRow(97)
+                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+                assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
+
+                (97 ..< 131).forEach {
+                    pager.moveToNextLine()
+                }
+
+                pager.moveToPrevPage()
+                ++iteration
+                moveToRow(119)
+                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+                assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
+
+                pager.moveToPrevPage()
+                ++iteration
+                moveToRow(107)
+                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+                assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
+
+                (95 downTo 0 step 12).forEach {
+                    pager.moveToPrevPage()
+                    ++iteration
+                    moveToRow(it)
+                    assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+                    assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
+                }
+
+                pager.moveToPrevPage()
+                ++iteration
+                assertEquals(0L, pager.viewportStartCharPosition, "after prev $iteration")
+                assertEquals(0L, pager.viewportStartBytePosition, "after prev $iteration")
+
+                pager.moveToPrevPage()
+                assertEquals(0L, pager.viewportStartCharPosition)
+                assertEquals(0L, pager.viewportStartBytePosition)
+            }
+        }
+    }
+}
+
+internal fun PageState.moveToRow(row: Int) {
+    start = 0
+    repeat(row) {
+        updatePageState(this)
+        start = firstRowBreakPos
+    }
+    updatePageState(this)
+}
+
+internal fun PageState.startBytePos(): Long {
+    return fileContent.substring(0 ..< start).toByteArray(Charsets.UTF_8).size.toLong()
 }
