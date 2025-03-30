@@ -114,16 +114,7 @@ class GiantFileReader(private val filePath: String, private val blockSize: Int =
         return blockCache[positionInBlock.blockIndex]?.bytes?.get(positionInBlock.bytePosition)
     }
 
-    /**
-     * Given `length` should be less than or equal a block size.
-     *
-     * It is not guaranteed that exactly `length` bytes would be read.
-     *
-     * @param startBytePosition 0-based, in bytes
-     * @param length in bytes
-     * @return pair of decoded string and the range of absolute byte positions of the decoded string
-     */
-    fun readString(startBytePosition: Long, length: Int): Pair<String, LongRange> {
+    internal fun readAsByteArrayOutputStream(startBytePosition: Long, length: Int): Pair<ByteArrayOutputStream2, LongRange> {
         // TODO optimize
         // TODO support emoji sequences
         // TODO refactor as a UTF-8 decoder
@@ -147,7 +138,7 @@ class GiantFileReader(private val filePath: String, private val blockSize: Int =
                 val currentBlockReadStart: Int = (startBytePosition - block.bytePositions.start).toInt()
 
                 if (startBytePosition > block.bytePositions.endInclusive) {
-                    return "" to (startBytePosition .. -2)
+                    return bb to (startBytePosition .. -2)
                 }
 
                 if (block.bytes[currentBlockReadStart].isContinuationByte()) {
@@ -197,7 +188,26 @@ class GiantFileReader(private val filePath: String, private val blockSize: Int =
             }
         }
 
-        return bb.toString(Charsets.UTF_8) to (start ..< end)
+        return bb to (start ..< end)
+    }
+
+    /**
+     * Given `length` should be less than or equal a block size.
+     *
+     * It is not guaranteed that exactly `length` bytes would be read.
+     *
+     * @param startBytePosition 0-based, in bytes
+     * @param length in bytes
+     * @return pair of decoded string and the range of absolute byte positions of the decoded string
+     */
+    fun readString(startBytePosition: Long, length: Int): Pair<String, LongRange> {
+        val (bb, byteRange) = readAsByteArrayOutputStream(startBytePosition, length)
+        return bb.toString(Charsets.UTF_8) to byteRange
+    }
+
+    fun readStringBytes(startBytePosition: Long, length: Int): Pair<ByteArray, LongRange> {
+        val (bb, byteRange) = readAsByteArrayOutputStream(startBytePosition, length)
+        return bb.toByteArray() to byteRange
     }
 
     private class FileBlock(val pos: FileBlockPosition, val bytes: ByteArray, val bytePositions: LongRange)

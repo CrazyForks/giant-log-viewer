@@ -2,6 +2,7 @@ package com.sunnychung.application.multiplatform.giantlogviewer.io
 
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.BidirectionalTextLayouter
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
+import com.sunnychung.lib.multiplatform.bigtext.extension.runIf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.ArrayList
@@ -174,7 +175,6 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
             val (manyText, byteRange) = fileReader.readString(viewportStartBytePosition, maxNumOfCharInViewport * 4 + 3 /* UTF-8 tail */)
             val lineSeparators = lineSeparatorRegex.findAll(manyText).take(numOfRowsInViewport + 1)
             var start = 0
-            // FIXME what if `manyText` starts with the end part of a previous line?
             var rowStarts = lineSeparators.flatMap { // this works only if running sequential (NOT in parallel)
                 val line = manyText.subSequence(start ..< it.range.first)
                 val (rowStarts, lastRowWidth) = textLayouter.layoutOneLine(line, viewport.width.toFloat(), 0f, start)
@@ -193,6 +193,89 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
                         manyText.substring(0 ..< nextPageStart).toByteArray(Charsets.UTF_8).size
                 viewportStartCharPosition += nextPageStart // FIXME UTF-8 offset diff in manyText
                 rebuildCacheIfInvalid()
+            }
+        }
+    }
+
+    fun moveToPrevPage() {
+        lock.write {
+            val numOfRowsInViewport = floor(viewport.height / rowHeight()).roundToInt()
+            if (numOfRowsInViewport == 0) {
+                return
+            }
+            val maxNumOfCharInARow = maxNumOfCharInARow()
+            val maxNumOfCharInViewport = maxNumOfCharInARow * numOfRowsInViewport
+
+            var readByteStart: Long = (viewportStartBytePosition - (maxNumOfCharInViewport * 4 + 3)).coerceAtLeast(0)
+            var readByteEndInclusive: Long = (readByteStart + (maxNumOfCharInViewport + 2) * 4 + 3).coerceAtMost(viewportStartBytePosition + 4 + 3)
+            var rowStarts: List<Long>
+            var manyText: String = ""
+            var lastBytePosition = viewportStartBytePosition
+            // TODO this loop is pretty inefficient. optimize.
+            // but from test case runs, this loop never loops.
+            while (true) {
+                println("rbs $readByteStart")
+                val (manyTextWithExtra, byteRangeWithExtra) = fileReader.readStringBytes(
+                    readByteStart,
+                    (readByteEndInclusive - readByteStart + 1L).toInt()
+                )
+                val extraByteLength = byteRangeWithExtra.endExclusive - lastBytePosition
+                manyText =
+                    String(manyTextWithExtra, 0, (manyTextWithExtra.size - extraByteLength).toInt(), Charsets.UTF_8) +
+                        manyText
+                val lineSeparators = lineSeparatorRegex.findAll(manyText).toList() //.takeLast(numOfRowsInViewport + 1)
+
+                if (lineSeparators.isEmpty()) {
+                    // TODO optimize this case to fast return
+                }
+
+                val lineSeparatorsOfCompleteLines = lineSeparators.runIf(byteRangeWithExtra.start > 0) {
+                    drop(1)
+                }
+                // discard the partial line which is the first line
+                rowStarts = lineSeparatorsOfCompleteLines
+                    .flatMapIndexed { i: Int, it: MatchResult ->
+                        val line = manyText.subSequence(
+                            it.range.endExclusive..<
+                                ((lineSeparatorsOfCompleteLines.getOrNull(i + 1))?.range?.first ?: manyText.length)
+                        )
+                        val (rowStarts, lastRowWidth) = textLayouter.layoutOneLine(
+                            line,
+                            viewport.width.toFloat(),
+                            0f,
+                            it.range.endExclusive
+                        )
+                        listOf(it.range.endExclusive) + rowStarts
+                    }.map { it.toLong() }.toList()
+                if (rowStarts.lastOrNull() == manyText.length.toLong()) { // end with '\n'
+                    rowStarts = rowStarts.dropLast(1)
+                }
+                if (byteRangeWithExtra.start == 0L) {
+                    val line = manyText.subSequence(0 ..< (lineSeparators.firstOrNull()?.range?.start ?: manyText.length))
+                    val (endRowStarts, lastRowWidth) = textLayouter.layoutOneLine(
+                        line,
+                        viewport.width.toFloat(),
+                        0f,
+                        0
+                    )
+                    rowStarts = listOf(0L) + endRowStarts.map { it.toLong() } + rowStarts
+                }
+                println(rowStarts)
+                if (rowStarts.size - numOfRowsInViewport >= 0 || byteRangeWithExtra.start == 0L) {
+                    val prevPageStart = rowStarts.getOrNull((rowStarts.size - numOfRowsInViewport).coerceAtLeast(0))
+                    if (prevPageStart != null) {
+                        // TODO overflow is possible
+                        viewportStartBytePosition = byteRangeWithExtra.start +
+                            manyText.substring(0 ..< prevPageStart.toInt()).toByteArray(Charsets.UTF_8).size
+                        viewportStartCharPosition -= manyText.length - prevPageStart
+                        rebuildCacheIfInvalid()
+                        return
+                    }
+                }
+                lastBytePosition = byteRangeWithExtra.start
+                val lastReadStart: Long = readByteStart
+                readByteStart = (readByteStart - (maxNumOfCharInViewport * 4 + 3)).coerceAtLeast(0)
+                readByteEndInclusive = (readByteStart + (maxNumOfCharInViewport + 2) * 4 + 3).coerceAtMost(lastReadStart + 4 + 3)
             }
         }
     }
