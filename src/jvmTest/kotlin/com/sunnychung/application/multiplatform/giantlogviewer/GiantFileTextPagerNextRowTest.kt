@@ -11,7 +11,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class GiantFileTextPagerNextLineTest {
+class GiantFileTextPagerNextRowTest {
 
     @Test
     fun singleLineLongText() {
@@ -39,7 +39,7 @@ class GiantFileTextPagerNextLineTest {
                     "range: [$start, $pageEnd)"
                 )
 
-                pager.moveToNextLine()
+                pager.moveToNextRow()
                 start += 23
                 ++loop
             }
@@ -90,7 +90,7 @@ class GiantFileTextPagerNextLineTest {
                         "range: [$start, $visibleEnd)"
                     )
 
-                    pager.moveToNextLine()
+                    pager.moveToNextRow()
                     start = if (firstRowBreakPos > 0) {
                         firstRowBreakPos
                     } else {
@@ -126,7 +126,7 @@ class GiantFileTextPagerNextLineTest {
                     "loop $loop"
                 )
 
-                pager.moveToNextLine()
+                pager.moveToNextRow()
             }
         }
     }
@@ -151,7 +151,7 @@ class GiantFileTextPagerNextLineTest {
                     "loop $loop"
                 )
 
-                pager.moveToNextLine()
+                pager.moveToNextRow()
             }
         }
     }
@@ -196,7 +196,7 @@ class GiantFileTextPagerNextLineTest {
                         "range: [$start, $visibleEnd)"
                     )
 
-                    pager.moveToNextLine()
+                    pager.moveToNextRow()
                     start = if (firstRowBreakPos > 0) {
                         firstRowBreakPos
                     } else {
@@ -245,7 +245,7 @@ class GiantFileTextPagerNextLineTest {
                         "range: [$start, $visibleEnd]"
                     )
 
-                    pager.moveToNextLine()
+                    pager.moveToNextRow()
                     start = if (firstRowBreakPos > 0) {
                         firstRowBreakPos /*-
                         fileContent.subSequence(0..<firstRowBreakPos)
@@ -305,7 +305,7 @@ class GiantFileTextPagerNextLineTest {
                         "range: [$start, $visibleEnd]"
                     )
 
-                    pager.moveToNextLine()
+                    pager.moveToNextRow()
                     start = if (firstRowBreakPos > 0) {
                         firstRowBreakPos
                     } else {
@@ -361,7 +361,7 @@ class GiantFileTextPagerNextLineTest {
                         "range: [$start, $visibleEnd]"
                     )
 
-                    pager.moveToNextLine()
+                    pager.moveToNextRow()
                     start = if (firstRowBreakPos > 0) {
                         firstRowBreakPos
                     } else {
@@ -417,7 +417,7 @@ class GiantFileTextPagerNextLineTest {
                         "range: [$start, $visibleEnd]"
                     )
 
-                    pager.moveToNextLine()
+                    pager.moveToNextRow()
                     start = if (firstRowBreakPos > 0) {
                         firstRowBreakPos
                     } else {

@@ -126,7 +126,7 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
         }
     }
 
-    fun moveToNextLine() {
+    fun moveToNextRow() {
         lock.write {
             val numOfRowsInViewport = numOfRowsInViewport
             if (numOfRowsInViewport == 0) {

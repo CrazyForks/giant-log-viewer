@@ -54,7 +54,7 @@ class GiantFileTextPagerPrevPageTest {
     }
 
     @Test
-    fun nextLineNextPageAndPrevPage1() {
+    fun nextRowNextPageAndPrevPage1() {
         val fileContent = """
             01234567890123456789012
             1
@@ -82,10 +82,10 @@ class GiantFileTextPagerPrevPageTest {
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var iteration = 0
             pager.moveToNextPage()
-            pager.moveToNextLine()
+            pager.moveToNextRow()
             pager.moveToNextPage()
             (25 ..< 35).forEach {
-                pager.moveToNextLine()
+                pager.moveToNextRow()
             }
             assertEquals(508L, pager.viewportStartCharPosition, "after next")
             assertEquals(508L, pager.viewportStartBytePosition, "after next")
@@ -102,7 +102,7 @@ class GiantFileTextPagerPrevPageTest {
 
             pager.moveToNextPage()
             (23 ..< 27).forEach {
-                pager.moveToNextLine()
+                pager.moveToNextRow()
             }
             assertEquals(355L, pager.viewportStartCharPosition, "after next")
             assertEquals(355L, pager.viewportStartBytePosition, "after next")
@@ -123,7 +123,7 @@ class GiantFileTextPagerPrevPageTest {
             assertEquals(0L, pager.viewportStartBytePosition, "after prev $iteration")
 
             (0 ..< 29).forEach {
-                pager.moveToNextLine()
+                pager.moveToNextRow()
             }
             assertEquals(381L, pager.viewportStartCharPosition, "after next")
             assertEquals(381L, pager.viewportStartBytePosition, "after next")
@@ -145,7 +145,7 @@ class GiantFileTextPagerPrevPageTest {
     }
 
     @Test
-    fun nextLineNextPageAndPrevPage2() {
+    fun nextRowNextPageAndPrevPage2() {
         val fileContent = """
             01234567890123456789012
             11234567890123456789012
@@ -316,7 +316,7 @@ class GiantFileTextPagerPrevPageTest {
                 pager.moveToNextPage()
             }
             repeat(4) {
-                pager.moveToNextLine()
+                pager.moveToNextRow()
             }
             assertEquals(3839L, pager.viewportStartCharPosition, "after next")
             assertEquals(3839L, pager.viewportStartBytePosition, "after next")
@@ -332,7 +332,7 @@ class GiantFileTextPagerPrevPageTest {
             assertEquals(3362L, pager.viewportStartBytePosition, "after prev $iteration")
 
             repeat(4) {
-                pager.moveToNextLine()
+                pager.moveToNextRow()
             }
             pager.moveToNextPage()
             assertEquals(3692L, pager.viewportStartCharPosition, "after next")
@@ -344,7 +344,7 @@ class GiantFileTextPagerPrevPageTest {
             assertEquals(3434L, pager.viewportStartBytePosition, "after prev $iteration")
 
             repeat(11) {
-                pager.moveToNextLine()
+                pager.moveToNextRow()
             }
 
             pager.moveToPrevPage()
@@ -353,7 +353,7 @@ class GiantFileTextPagerPrevPageTest {
             assertEquals(3411L, pager.viewportStartBytePosition, "after prev $iteration")
 
             repeat(11) {
-                pager.moveToNextLine()
+                pager.moveToNextRow()
             }
 
             pager.moveToPrevPage()
@@ -475,7 +475,7 @@ class GiantFileTextPagerPrevPageTest {
             with(PageState(fileContent = fileContent)) {
                 var iteration = 0
                 repeat(126) {
-                    pager.moveToNextLine()
+                    pager.moveToNextRow()
                 }
                 moveToRow(126)
                 // emoji 2 chars, otherwise 1 char
@@ -489,7 +489,7 @@ class GiantFileTextPagerPrevPageTest {
                 assertEquals(start.toLong() /* 1457L */, pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(startBytePos() /* 1977L */, pager.viewportStartBytePosition, "after prev $iteration")
 
-                pager.moveToNextLine()
+                pager.moveToNextRow()
 
                 pager.moveToPrevPage()
                 ++iteration
@@ -498,7 +498,7 @@ class GiantFileTextPagerPrevPageTest {
                 assertEquals(startBytePos() /* 1604L */, pager.viewportStartBytePosition, "after prev $iteration")
 
                 repeat(30) {
-                    pager.moveToNextLine()
+                    pager.moveToNextRow()
                 }
 
                 pager.moveToPrevPage()
@@ -520,7 +520,7 @@ class GiantFileTextPagerPrevPageTest {
                 assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
 
                 (97 ..< 131).forEach {
-                    pager.moveToNextLine()
+                    pager.moveToNextRow()
                 }
 
                 pager.moveToPrevPage()
