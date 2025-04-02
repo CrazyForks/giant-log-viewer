@@ -197,7 +197,7 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
         }
     }
 
-    fun moveToPrevPage() {
+    internal fun moveToPrev(numOfRowsToMove: Int) {
         lock.write {
             val numOfRowsInViewport = floor(viewport.height / rowHeight()).roundToInt()
             if (numOfRowsInViewport == 0) {
@@ -212,18 +212,27 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
             var manyText: String = ""
             var lastBytePosition = viewportStartBytePosition
             // TODO this loop is pretty inefficient. optimize.
-            // but from test case runs, this loop never loops.
+            // this loop loops when it hits a very long line.
             while (true) {
                 println("rbs $readByteStart")
                 val (manyTextWithExtra, byteRangeWithExtra) = fileReader.readStringBytes(
                     readByteStart,
                     (readByteEndInclusive - readByteStart + 1L).toInt()
                 )
-                val extraByteLength = byteRangeWithExtra.endExclusive - lastBytePosition
+                val extraByteLength = (byteRangeWithExtra.endExclusive - lastBytePosition).coerceAtLeast(0L)
+
+                if (manyTextWithExtra.size - extraByteLength <= 0) {
+                    // has reached the start of string although the move request is not completely fulfilled
+                    viewportStartBytePosition = 0L
+                    viewportStartCharPosition = 0L
+                    rebuildCacheIfInvalid()
+                    return
+                }
+
                 manyText =
                     String(manyTextWithExtra, 0, (manyTextWithExtra.size - extraByteLength).toInt(), Charsets.UTF_8) +
                         manyText
-                val lineSeparators = lineSeparatorRegex.findAll(manyText).toList() //.takeLast(numOfRowsInViewport + 1)
+                val lineSeparators = lineSeparatorRegex.findAll(manyText).toList() //.takeLast(numOfRowsToMove + 1)
 
                 if (lineSeparators.isEmpty()) {
                     // TODO optimize this case to fast return
@@ -261,8 +270,8 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
                     rowStarts = listOf(0L) + endRowStarts.map { it.toLong() } + rowStarts
                 }
                 println(rowStarts)
-                if (rowStarts.size - numOfRowsInViewport >= 0 || byteRangeWithExtra.start == 0L) {
-                    val prevPageStart = rowStarts.getOrNull((rowStarts.size - numOfRowsInViewport).coerceAtLeast(0))
+                if (rowStarts.size - numOfRowsToMove >= 0 || byteRangeWithExtra.start == 0L) {
+                    val prevPageStart = rowStarts.getOrNull((rowStarts.size - numOfRowsToMove).coerceAtLeast(0))
                     if (prevPageStart != null) {
                         // TODO overflow is possible
                         viewportStartBytePosition = byteRangeWithExtra.start +
@@ -278,6 +287,15 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
                 readByteEndInclusive = (readByteStart + (maxNumOfCharInViewport + 2) * 4 + 3).coerceAtMost(lastReadStart + 4 + 3)
             }
         }
+    }
+
+    fun moveToPrevPage() {
+        val numOfRowsInViewport = floor(viewport.height / rowHeight()).roundToInt()
+        moveToPrev(numOfRowsInViewport)
+    }
+
+    fun moveToPrevRow() {
+        moveToPrev(1)
     }
 
     private data class ViewportCacheKey(val viewport: Viewport, val viewportStartCharPosition: Long)
