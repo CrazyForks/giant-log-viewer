@@ -85,6 +85,60 @@ class GiantFileTextPagerPrevRowTest {
         }
         testNextRowThenPrevRow(fileContent, blockSize = 2048)
     }
+
+    @Test
+    fun unicodeSimple() {
+        val lines = listOf(
+            "你好呀",
+            "啲Emoji好q麻煩",
+            "😄😄...😇🤣🤯🤬🫡🫠😵",
+            "zzz😪",
+            "🤑🤑$$",
+            "🍙",
+        )
+        val fileContent = lines.joinToString("\n")
+        testNextRowThenPrevRow(fileContent)
+    }
+
+    @Test
+    fun unicodeAcrossRowBreaks() {
+        val lines = listOf(
+            "喂你好",
+            "啲Emoji好q麻煩",
+            "😄😄...😇🤣🤯🤬🫡🫠😵",
+            "zzz😪",
+            "🤑🤑$$",
+            "🍙",
+        )
+        val multipliedLines = lines.flatMap { line ->
+            (23 - 9..23 + 9 + 2).map { numOfPrefixChars ->
+                (0..<numOfPrefixChars).joinToString("") {
+                    ('0'.code + (it % 10)).toChar().toString()
+                } + line
+            }
+        }
+        val fileContent = multipliedLines.joinToString("\n")
+        testNextRowThenPrevRow(fileContent)
+    }
+
+    @Test
+    fun unicodeMultiBlocks() {
+        val random = Random(45678)
+        val charset = "零一二三四五六七八九ABCDabc".map { it.toString() } + listOf("😄", "😄", "😇", "🤣", "🤯", "🤬", "🫡", "🫠", "😵")
+        val fileContent = (0 ..< 400000).joinToString("") {
+            val newLineFactor = if (random.nextInt(13) == 0) {
+                8
+            } else {
+                131
+            }
+            if (random.nextInt(newLineFactor) == 0) {
+                return@joinToString "\n"
+            }
+
+            charset[random.nextInt(0, charset.size)]
+        }
+        testNextRowThenPrevRow(fileContent = fileContent, blockSize = 4096)
+    }
 }
 
 private fun testNextRowThenPrevRow(fileContent: String, blockSize: Int = 1 * 1024 * 1024) {
