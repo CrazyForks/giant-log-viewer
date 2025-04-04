@@ -26,7 +26,7 @@ jobs:
         with:
           distribution: 'corretto'
           java-version: '21'
-      - run: ./gradlew clean packageReleaseDistributionForCurrentOS
+      - run: ./gradlew clean createReleaseDistributable
       - run: pushd ./build/compose/binaries && ls -al && cd main-release && ls -al && popd
       - run: pushd ./build/compose/binaries/main-release/app && ls -al && tar -cvzf "app.tar.gz" "Giant Log Viewer" && mv "app.tar.gz" "../../../../../GiantLogViewer-${{ github.ref_name }}-linux-${{ runner.arch }}.tar.gz" && popd
       - uses: softprops/action-gh-release@v1
@@ -41,7 +41,7 @@ jobs:
         with:
           distribution: 'corretto'
           java-version: '21'
-      - run: ./gradlew clean packageReleaseDistributionForCurrentOS
+      - run: ./gradlew clean createReleaseDistributable
       - run: pushd ./build/compose/binaries && dir && cd main-release && dir && popd
       - run: pushd ./build/compose/binaries/main-release/app && dir && tar -acf "app.zip" "Giant Log Viewer" && move "app.zip" "../../../../../GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}.zip" && popd
       - uses: softprops/action-gh-release@v1
