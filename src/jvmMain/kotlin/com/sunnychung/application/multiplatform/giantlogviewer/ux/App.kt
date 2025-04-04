@@ -41,6 +41,25 @@ fun App() {
             )
             .background(Color.Cyan)
     ) {
+        if (selectedFilePath.isEmpty()) {
+            EmptyFileView()
+            return@Box
+        }
+
+        val file = File(selectedFilePath)
+        if (!file.exists()) {
+            ErrorView(message = "The selected object no longer exists")
+            return@Box
+        }
+        if (!file.isFile) {
+            ErrorView(message = "The selected object is not a file")
+            return@Box
+        }
+        if (!file.canRead()) {
+            ErrorView(message = "The selected file is not readable")
+            return@Box
+        }
+
         GiantTextViewer(filePath = selectedFilePath, modifier = Modifier.fillMaxSize())
     }
 }
