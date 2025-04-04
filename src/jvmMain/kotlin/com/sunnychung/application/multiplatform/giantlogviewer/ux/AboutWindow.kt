@@ -35,6 +35,7 @@ import com.sunnychung.application.giantlogviewer.generated.resources.appicon
 import com.sunnychung.application.giantlogviewer.generated.resources.copy
 import com.sunnychung.application.giantlogviewer.generated.resources.world_wide_web
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.setMinimumSize
+import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContext
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import org.jetbrains.compose.resources.painterResource
 
@@ -43,6 +44,7 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
     val font = LocalFont.current.normalFontFamily
     val clipboardManager = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
+    val buildInfo = AppContext.instance.MetadataManager
 
     Window(
         visible = isVisible,
@@ -51,10 +53,10 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
         state = WindowState(
             position = WindowPosition.Aligned(Alignment.Center),
             width = 400.dp,
-            height = 200.dp,
+            height = 230.dp,
         ),
     ) {
-        setMinimumSize(width = 400.dp, 200.dp)
+        setMinimumSize(width = 400.dp, 230.dp)
 
         Box(Modifier.fillMaxSize().background(Color.Cyan).padding(12.dp)) {
             Column(
@@ -74,7 +76,14 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
                         fontWeight = FontWeight.Medium,
                     )
                 )
-                Spacer(Modifier.height(8.dp))
+                BasicText(
+                    "${buildInfo.version} (${buildInfo.gitCommitHash})",
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        fontFamily = font,
+                    )
+                )
+                Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     val repoUrl = "https://github.com/sunny-chung/giant-log-viewer"
                     BasicText(repoUrl, style = TextStyle(fontFamily = font))
