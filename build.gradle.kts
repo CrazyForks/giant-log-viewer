@@ -68,6 +68,16 @@ compose.desktop {
             vendor = "Sunny Chung"
             copyright = "© 2025 Sunny Chung"
             packageVersion = distributionVersion
+
+            macOS {
+                iconFile.set(project.file("appicon/appicon.icns"))
+            }
+            windows {
+                iconFile.set(project.file("appicon/appicon.ico"))
+            }
+            linux {
+                iconFile.set(project.file("appicon/appicon.png"))
+            }
         }
     }
 }
