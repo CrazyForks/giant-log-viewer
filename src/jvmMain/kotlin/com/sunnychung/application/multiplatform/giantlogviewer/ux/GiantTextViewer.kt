@@ -41,6 +41,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextP
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.BidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
 import com.sunnychung.lib.multiplatform.bigtext.util.AnnotatedStringBuilder
@@ -65,7 +66,7 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
 
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
-    val textStyle = TextStyle(fontFamily = FontFamily.Monospace)
+    val textStyle = TextStyle(fontFamily = LocalFont.current.monospaceFontFamily)
     val charMeasurer = remember(density) { ComposeUnicodeCharMeasurer(textMeasurer, textStyle) }
     val textLayouter = remember(charMeasurer) { MonospaceBidirectionalTextLayouter(charMeasurer) }
 
