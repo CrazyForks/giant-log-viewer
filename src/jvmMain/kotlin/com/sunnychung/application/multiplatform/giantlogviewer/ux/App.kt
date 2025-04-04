@@ -36,6 +36,7 @@ import java.net.URI
 fun App() {
     var selectedFileName by remember { mutableStateOf("") }
     var isShowHelpWindow by remember { mutableStateOf(false) }
+    var isShowAboutWindow by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -46,7 +47,10 @@ fun App() {
                 resource = Res.drawable.info,
                 size = 20.dp,
                 color = Color.White,
-                modifier = Modifier.padding(4.dp)
+                modifier = Modifier.padding(5.dp)
+                    .clickable {
+                        isShowAboutWindow = true
+                    }
             )
             BasicText(
                 text = selectedFileName,
@@ -64,7 +68,7 @@ fun App() {
                 resource = Res.drawable.help,
                 size = 20.dp,
                 color = Color.White,
-                modifier = Modifier.padding(4.dp)
+                modifier = Modifier.padding(5.dp)
                     .clickable {
                         isShowHelpWindow = true
                     }
@@ -74,6 +78,7 @@ fun App() {
         AppMainContent(onSelectFile = { selectedFileName = it?.name ?: "" })
 
         HelpWindow(isVisible = isShowHelpWindow, onClose = { isShowHelpWindow = false })
+        AboutWindow(isVisible = isShowAboutWindow, onClose = { isShowAboutWindow = false })
     }
 }
 

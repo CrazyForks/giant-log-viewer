@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
+import com.sunnychung.application.multiplatform.giantlogviewer.extension.setMinimumSize
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.lib.android.composabletable.ux.Table
 
@@ -48,6 +49,8 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
             height = 250.dp,
         ),
     ) {
+        setMinimumSize(width = 600.dp, 250.dp)
+
         Row {
             KeyBindingTable(
                 title = buildAnnotatedString {
