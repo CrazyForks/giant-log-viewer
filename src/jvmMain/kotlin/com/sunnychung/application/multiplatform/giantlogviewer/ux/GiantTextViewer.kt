@@ -3,12 +3,12 @@ package com.sunnychung.application.multiplatform.giantlogviewer.ux
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -23,32 +23,26 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sunnychung.application.multiplatform.giantlogviewer.io.ComposeGiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
-import com.sunnychung.application.multiplatform.giantlogviewer.layout.BidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
-import com.sunnychung.lib.multiplatform.bigtext.util.AnnotatedStringBuilder
 import com.sunnychung.lib.multiplatform.bigtext.util.annotatedString
 import com.sunnychung.lib.multiplatform.bigtext.util.buildAnnotatedStringPatched
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
-import kotlinx.coroutines.Dispatchers
 import java.io.File
 
 @Composable
@@ -81,11 +75,7 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
         filePager.viewport = Viewport(componentWidth, componentHeight, density.density)
     }
 
-    Box(modifier
-        .onGloballyPositioned {
-            componentWidth = it.size.width
-            componentHeight = it.size.height
-        }
+    Row(modifier
 //        .onKeyEvent { e ->
         .onPreviewKeyEvent { e ->
             println("onKeyEvent ${e.key}")
@@ -118,11 +108,19 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
         .focusable()
     ) {
         val startTime = KInstant.now()
-        val textToDisplay: List<CharSequence> = filePager.textInViewport
+        Box(modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight()
+            .onGloballyPositioned {
+                componentWidth = it.size.width
+                componentHeight = it.size.height
+            }
+        ) {
+            val textToDisplay: List<CharSequence> = filePager.textInViewport
 //        println("textToDisplay:\n$textToDisplay")
-        val lineHeight = (textLayouter.charMeasurer as ComposeUnicodeCharMeasurer).getRowHeight()
-        Canvas(modifier = Modifier.matchParentSize()) {
-            with(density) {
+            val lineHeight = (textLayouter.charMeasurer as ComposeUnicodeCharMeasurer).getRowHeight()
+            Canvas(modifier = Modifier.matchParentSize()) {
+//                with(density) {
                 textToDisplay.forEachIndexed { rowRelativeIndex, row ->
                     var unicodeSequence: CharSequence? = null
                     val rowYOffset = rowRelativeIndex * lineHeight
@@ -165,8 +163,15 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
                         accumulateXOffset += charWidth
                     }
                 }
+//                }
             }
         }
+
+        VerticalIndicatorView(
+            value = (filePager.viewportStartBytePosition.toDouble() / fileReader.lengthInBytes().toDouble()).toFloat(),
+            modifier = Modifier.width(20.dp).fillMaxHeight()
+        )
+
         println("prepare rendering in ${KInstant.now() - startTime}")
     }
 
