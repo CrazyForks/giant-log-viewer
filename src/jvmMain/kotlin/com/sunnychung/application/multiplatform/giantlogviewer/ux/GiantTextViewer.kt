@@ -42,7 +42,9 @@ import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasur
 import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
 import com.sunnychung.lib.multiplatform.bigtext.util.annotatedString
 import com.sunnychung.lib.multiplatform.bigtext.util.buildAnnotatedStringPatched
+import com.sunnychung.lib.multiplatform.bigtext.util.debouncedStateOf
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
+import com.sunnychung.lib.multiplatform.kdatetime.extension.milliseconds
 import java.io.File
 
 @Composable
@@ -55,8 +57,8 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
 
     println("recompose $filePath $refreshKey")
 
-    var componentWidth by remember { mutableIntStateOf(0) }
-    var componentHeight by remember { mutableIntStateOf(0) }
+    var contentComponentWidth by remember { mutableIntStateOf(0) }
+    var contentComponentHeight by remember { mutableIntStateOf(0) }
 
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
@@ -71,8 +73,14 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
 
     val focusRequester = remember { FocusRequester() }
 
-    remember(filePager, componentWidth, componentHeight, density) {
-        filePager.viewport = Viewport(componentWidth, componentHeight, density.density)
+    val (contentWidth, isContentWidthLatest) = debouncedStateOf(200.milliseconds(), tolerateCount = 1, filePager) {
+        contentComponentWidth
+    }
+
+    if (isContentWidthLatest) {
+        remember(filePager, contentWidth, contentComponentHeight, density) {
+            filePager.viewport = Viewport(contentWidth, contentComponentHeight, density.density)
+        }
     }
 
     Row(modifier
@@ -112,8 +120,8 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
             .weight(1f)
             .fillMaxHeight()
             .onGloballyPositioned {
-                componentWidth = it.size.width
-                componentHeight = it.size.height
+                contentComponentWidth = it.size.width
+                contentComponentHeight = it.size.height
             }
         ) {
             val textToDisplay: List<CharSequence> = filePager.textInViewport
