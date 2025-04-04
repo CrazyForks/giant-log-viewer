@@ -1,5 +1,6 @@
 package com.sunnychung.application.multiplatform.giantlogviewer
 
+import com.sunnychung.application.multiplatform.giantlogviewer.io.CoroutineGiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
@@ -145,7 +146,7 @@ private fun testNextRowThenPrevRow(fileContent: String, blockSize: Int = 1 * 102
     createTestFile(fileContent) { file ->
         val fileLength = file.length()
         val fileReader = GiantFileReader(file.absolutePath, blockSize)
-        val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+        val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
         pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
         val rowStarts = mutableListOf<Long>()
         val rowByteStarts = mutableListOf<Long>()

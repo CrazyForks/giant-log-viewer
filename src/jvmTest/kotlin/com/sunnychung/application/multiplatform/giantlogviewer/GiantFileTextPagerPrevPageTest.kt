@@ -1,5 +1,6 @@
 package com.sunnychung.application.multiplatform.giantlogviewer
 
+import com.sunnychung.application.multiplatform.giantlogviewer.io.CoroutineGiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
@@ -32,7 +33,7 @@ class GiantFileTextPagerPrevPageTest {
         }
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             val pageCharPositions = mutableListOf(0L)
             val pageBytePositions = mutableListOf(0L)
@@ -78,7 +79,7 @@ class GiantFileTextPagerPrevPageTest {
         """.trimIndent()
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var iteration = 0
             pager.moveToNextPage()
@@ -309,7 +310,7 @@ class GiantFileTextPagerPrevPageTest {
         """.trimIndent()
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var iteration = 0
             repeat(15) {
@@ -470,7 +471,7 @@ class GiantFileTextPagerPrevPageTest {
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager =
-                GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+                CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             with(PageState(fileContent = fileContent)) {
                 var iteration = 0

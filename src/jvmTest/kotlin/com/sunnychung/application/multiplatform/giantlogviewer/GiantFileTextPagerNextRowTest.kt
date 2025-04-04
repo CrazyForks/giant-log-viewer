@@ -1,5 +1,6 @@
 package com.sunnychung.application.multiplatform.giantlogviewer
 
+import com.sunnychung.application.multiplatform.giantlogviewer.io.CoroutineGiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
@@ -25,7 +26,7 @@ class GiantFileTextPagerNextRowTest {
         }
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var start = 0
             var loop = 0
@@ -35,7 +36,7 @@ class GiantFileTextPagerNextRowTest {
                 val pageEnd = (start + 23 * 13).coerceAtMost(fileLength)
                 assertListOfStringStartWith(
                     fileContent.substring(start..< pageEnd).windowed(23, 23, true),
-                    pager.textInViewport.value,
+                    pager.textInViewport,
                     "range: [$start, $pageEnd)"
                 )
 
@@ -73,7 +74,7 @@ class GiantFileTextPagerNextRowTest {
 //        println(fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             val pageState = PageState(fileContent = fileContent)
             var loop = 0
@@ -86,7 +87,7 @@ class GiantFileTextPagerNextRowTest {
                     assertListOfStringStartWith(
                         fileContent.substring(start ..< visibleEnd).split(lineSeparatorRegex)
                             .flatMap { it.windowed(23, 23, true) },
-                        pager.textInViewport.value,
+                        pager.textInViewport,
                         "range: [$start, $visibleEnd)"
                     )
 
@@ -114,7 +115,7 @@ class GiantFileTextPagerNextRowTest {
 //        println(fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             (0 .. 1).forEach { loop ->
                 println("pos: ${pager.viewportStartCharPosition}")
@@ -122,7 +123,7 @@ class GiantFileTextPagerNextRowTest {
                 assertEquals(0, pager.viewportStartBytePosition, "loop $loop")
                 assertListOfStringStartWith(
                     listOf(fileContent),
-                    pager.textInViewport.value,
+                    pager.textInViewport,
                     "loop $loop"
                 )
 
@@ -139,7 +140,7 @@ class GiantFileTextPagerNextRowTest {
 //        println(fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             (0 .. 1).forEach { loop ->
                 println("pos: ${pager.viewportStartCharPosition}")
@@ -147,7 +148,7 @@ class GiantFileTextPagerNextRowTest {
                 assertEquals(0, pager.viewportStartBytePosition, "loop $loop")
                 assertListOfStringStartWith(
                     emptyList(),
-                    pager.textInViewport.value,
+                    pager.textInViewport,
                     "loop $loop"
                 )
 
@@ -179,7 +180,7 @@ class GiantFileTextPagerNextRowTest {
 //        println(fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath, 4096)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             val pageState = PageState(fileContent = fileContent)
             var loop = 0
@@ -192,7 +193,7 @@ class GiantFileTextPagerNextRowTest {
                     assertListOfStringStartWith(
                         fileContent.substring(start ..< visibleEnd).split(lineSeparatorRegex)
                             .flatMap { it.windowed(23, 23, true) },
-                        pager.textInViewport.value,
+                        pager.textInViewport,
                         "range: [$start, $visibleEnd)"
                     )
 
@@ -227,7 +228,7 @@ class GiantFileTextPagerNextRowTest {
         val pageState = PageState(fileContent = fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var loop = 0
             with (pageState) {
@@ -241,7 +242,7 @@ class GiantFileTextPagerNextRowTest {
 
                     assertListOfStringStartWith(
                         fileContent.substring(start..visibleEnd).split(lineSeparatorRegex),
-                        pager.textInViewport.value,
+                        pager.textInViewport,
                         "range: [$start, $visibleEnd]"
                     )
 
@@ -285,7 +286,7 @@ class GiantFileTextPagerNextRowTest {
         val pageState = PageState(fileContent = fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var loop = 0
             with (pageState) {
@@ -301,7 +302,7 @@ class GiantFileTextPagerNextRowTest {
                         fileContent.substring(start..visibleEnd).split(lineSeparatorRegex)
                             .flatMap { it.chunkedUnicode(23) }
                             .take(13),
-                        pager.textInViewport.value,
+                        pager.textInViewport,
                         "range: [$start, $visibleEnd]"
                     )
 
@@ -341,7 +342,7 @@ class GiantFileTextPagerNextRowTest {
         val pageState = PageState(fileContent = fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var loop = 0
             with (pageState) {
@@ -357,7 +358,7 @@ class GiantFileTextPagerNextRowTest {
                         fileContent.substring(start..visibleEnd).split(lineSeparatorRegex)
                             .flatMap { it.chunkedUnicode(23) }
                             .take(13),
-                        pager.textInViewport.value,
+                        pager.textInViewport,
                         "range: [$start, $visibleEnd]"
                     )
 
@@ -397,7 +398,7 @@ class GiantFileTextPagerNextRowTest {
         val pageState = PageState(fileContent = fileContent)
         createTestFile(fileContent) { file ->
             val fileReader = GiantFileReader(file.absolutePath, 4096)
-            val pager = GiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
+            val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             var loop = 0
             with (pageState) {
@@ -413,7 +414,7 @@ class GiantFileTextPagerNextRowTest {
                         fileContent.substring(start..visibleEnd).split(lineSeparatorRegex)
                             .flatMap { it.chunkedUnicode(23) }
                             .take(13),
-                        pager.textInViewport.value,
+                        pager.textInViewport,
                         "range: [$start, $visibleEnd]"
                     )
 
