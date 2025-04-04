@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -40,6 +41,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.BidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
+import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
 import com.sunnychung.lib.multiplatform.bigtext.util.AnnotatedStringBuilder
 import com.sunnychung.lib.multiplatform.bigtext.util.annotatedString
 import com.sunnychung.lib.multiplatform.bigtext.util.buildAnnotatedStringPatched
@@ -87,11 +89,17 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
             println("onKeyEvent ${e.key}")
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
-                when (e.key to e.isAltPressed) {
-                    Key.DirectionUp to false -> filePager.moveToPrevRow()
-                    Key.DirectionDown to false -> filePager.moveToNextRow()
-                    Key.DirectionUp to true -> filePager.moveToPrevPage()
-                    Key.DirectionDown to true -> filePager.moveToNextPage()
+                when {
+                    e.key == Key.F -> filePager.moveToNextPage()
+                    e.key == Key.B -> filePager.moveToPrevPage()
+                    e.key == Key.DirectionUp && e.isAltPressed -> filePager.moveToPrevPage()
+                    e.key == Key.DirectionDown && e.isAltPressed -> filePager.moveToNextPage()
+
+                    e.key == Key.G && e.isShiftPressed -> filePager.moveToTheLastRow()
+                    e.key == Key.DirectionDown && e.isCtrlOrCmdPressed() -> filePager.moveToTheLastRow()
+
+                    e.key == Key.DirectionUp -> filePager.moveToPrevRow()
+                    e.key == Key.DirectionDown -> filePager.moveToNextRow()
                     else -> {
 //                    return@onKeyEvent false
                         return@onPreviewKeyEvent false

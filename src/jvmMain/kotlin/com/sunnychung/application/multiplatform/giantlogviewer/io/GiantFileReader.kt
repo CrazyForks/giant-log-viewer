@@ -20,6 +20,8 @@ class GiantFileReader(private val filePath: String, private val blockSize: Int =
         file.close()
     }
 
+    fun lengthInBytes(): Long = file.length()
+
     private fun readBlock(block: FileBlockPosition, fileSize: Long): Pair<ByteArray, LongRange> {
         if (block.position < 0 || block.position > fileSize / blockSize) {
             throw IndexOutOfBoundsException("Attempt to read block ${block.position} from ${block.anchor} but there are only ${fileSize / blockSize} blocks. File size is ${fileSize}.")

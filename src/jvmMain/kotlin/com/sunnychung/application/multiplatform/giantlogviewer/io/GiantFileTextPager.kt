@@ -16,6 +16,7 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
 
     protected val lock = ReentrantReadWriteLock()
 
+    @Deprecated("No longer maintained as no fast way to determine the value when the cursor is moved to EOF")
     var viewportStartCharPosition: Long = 0L
         get() = lock.read { field }
         set(value) {
@@ -55,11 +56,11 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
     abstract var textInViewport: List<CharSequence>
         protected set
 
-    private var viewportCacheKey: ViewportCacheKey = ViewportCacheKey(viewport, viewportStartCharPosition)
+    private var viewportCacheKey: ViewportCacheKey = ViewportCacheKey(viewport, viewportStartBytePosition)
 
     private fun isViewportCacheInvalid(): Boolean {
         return lock.read {
-            viewportCacheKey != ViewportCacheKey(viewport, viewportStartCharPosition)
+            viewportCacheKey != ViewportCacheKey(viewport, viewportStartBytePosition)
         }
     }
 
@@ -116,6 +117,7 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
                     emptyList()
                 }
                 textInViewport = viewportText
+                viewportCacheKey = ViewportCacheKey(viewport, viewportStartBytePosition)
                 println("rebuilt text cache")
             }
         }
@@ -192,7 +194,7 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
         }
     }
 
-    internal fun moveToPrev(numOfRowsToMove: Int) {
+    internal fun moveToPrev(numOfRowsToMove: Int, startBytePosition: Long = viewportStartBytePosition) {
         lock.write {
             val numOfRowsInViewport = floor(viewport.height / rowHeight()).roundToInt()
             if (numOfRowsInViewport == 0) {
@@ -201,11 +203,11 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
             val maxNumOfCharInARow = maxNumOfCharInARow()
             val maxNumOfCharInViewport = maxNumOfCharInARow * numOfRowsInViewport
 
-            var readByteStart: Long = (viewportStartBytePosition - (maxNumOfCharInViewport * 4 + 3)).coerceAtLeast(0)
-            var readByteEndInclusive: Long = (readByteStart + (maxNumOfCharInViewport + 2) * 4 + 3).coerceAtMost(viewportStartBytePosition + 4 + 3)
+            var readByteStart: Long = (startBytePosition - (maxNumOfCharInViewport * 4 + 3)).coerceAtLeast(0)
+            var readByteEndInclusive: Long = (readByteStart + (maxNumOfCharInViewport + 2) * 4 + 3).coerceAtMost(startBytePosition + 4 + 3)
             var rowStarts: List<Long>
             var manyText: String = ""
-            var lastBytePosition = viewportStartBytePosition
+            var lastBytePosition = startBytePosition
             // TODO this loop is pretty inefficient. optimize.
             // this loop loops when it hits a very long line.
             while (true) {
@@ -293,7 +295,27 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
         moveToPrev(1)
     }
 
-    private data class ViewportCacheKey(val viewport: Viewport, val viewportStartCharPosition: Long)
+    fun moveToTheLastRow() {
+        val fileLength: Long = fileReader.lengthInBytes()
+        if (fileLength < 1) {
+            return
+        }
+        lock.write {
+            val (lastPortionBytes, lastPortionRange) = fileReader.readStringBytes(
+                (fileLength - 7).coerceAtLeast(0L),
+                14
+            )
+            val lastChar = lastPortionBytes.getOrNull((fileLength - 1L - lastPortionRange.start).toInt())
+            if (lastChar?.toInt()?.toChar() == '\n') {
+                viewportStartBytePosition = fileLength
+                rebuildCacheIfInvalid()
+            } else {
+                moveToPrev(numOfRowsToMove = 1, startBytePosition = fileLength)
+            }
+        }
+    }
+
+    private data class ViewportCacheKey(val viewport: Viewport, val viewportStartBytePosition: Long)
 }
 
 data class Viewport(val width: Int, val height: Int, val density: Float) {

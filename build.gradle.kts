@@ -85,7 +85,7 @@ tasks.create("createBuildProperties") {
         file.writer().use { writer ->
             val p = Properties()
             p["version"] = project.version.toString()
-//            p["git.commit"] = getGitCommitHash() // FIXME
+            p["git.commit"] = getGitCommitHash()
             p.store(writer, null)
         }
     }
