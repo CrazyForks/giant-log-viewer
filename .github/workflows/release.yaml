@@ -1,0 +1,66 @@
+name: Build Release
+on:
+  push:
+    tags:
+      - v**
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  deployments: read
+  id-token: none
+  issues: read
+  discussions: read
+  packages: read
+  pages: read
+  pull-requests: read
+  repository-projects: read
+  security-events: none
+  statuses: read
+jobs:
+  build-linux:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '21'
+      - run: ./gradlew clean packageReleaseDistributionForCurrentOS
+      - run: pushd ./build/compose/binaries/main-release/app && ls -al && tar -cvzf "app.tar.gz" "Giant Log Viewer" && mv "app.tar.gz" "../../../../../GiantLogViewer-${{ github.ref_name }}-linux-${{ runner.arch }}.tar.gz" && popd
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: "GiantLogViewer-${{ github.ref_name }}-linux-${{ runner.arch }}.tar.gz"
+          draft: true
+  build-windows:
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '21'
+      - run: ./gradlew clean packageReleaseDistributionForCurrentOS
+      - run: pushd ./build/compose/binaries/main-release/app && dir && tar -acf "app.zip" "Giant Log Viewer" && move "app.zip" "../../../../../GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}.zip" && popd
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: "GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}.zip"
+          draft: true
+  build-macos:
+    strategy:
+      matrix:
+        # macos-13 for Intel Mac, macos-14 for Apple Chips Mac
+        os: [macos-13, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '21'
+      - run: ./gradlew clean packageReleaseDistributionForCurrentOS
+      - run: mv ./build/compose/binaries/main-release/dmg/*.dmg "./GiantLogViewer-${{ github.ref_name }}-macos-${{ runner.arch }}.dmg"
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: "./GiantLogViewer-${{ github.ref_name }}-macos-${{ runner.arch }}.dmg"
+          draft: true
