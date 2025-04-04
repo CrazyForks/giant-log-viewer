@@ -41,6 +41,9 @@ kotlin {
                 // no longer in use
                 // implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.1")
             }
+
+            // for build info properties
+            resources.srcDir("$buildDir/resources")
         }
         val jvmTest by getting {
             dependencies {
@@ -115,6 +118,10 @@ tasks.create("createBuildProperties") {
 }
 
 tasks.getByName("jvmProcessResources") {
+    dependsOn("createBuildProperties")
+}
+
+tasks.getByName("jvmMainClasses") {
     dependsOn("createBuildProperties")
 }
 
