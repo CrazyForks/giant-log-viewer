@@ -36,6 +36,7 @@ kotlin {
                 implementation(compose.components.resources)
                 implementation("io.github.sunny-chung:bigtext-ui-composable:2.1.0")
                 implementation("io.github.sunny-chung:kdatetime-multiplatform:1.1.0")
+                implementation("io.github.sunny-chung:composable-table:1.3.1")
 
                 // no longer in use
                 // implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.1")
