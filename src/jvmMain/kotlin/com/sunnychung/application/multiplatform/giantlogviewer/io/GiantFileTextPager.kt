@@ -3,9 +3,6 @@ package com.sunnychung.application.multiplatform.giantlogviewer.io
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.BidirectionalTextLayouter
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.runIf
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import java.util.ArrayList
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
@@ -15,9 +12,9 @@ import kotlin.math.roundToInt
 
 val lineSeparatorRegex = "\r?\n".toRegex()
 
-class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: BidirectionalTextLayouter) {
+abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: BidirectionalTextLayouter) {
 
-    private val lock = ReentrantReadWriteLock()
+    protected val lock = ReentrantReadWriteLock()
 
     var viewportStartCharPosition: Long = 0L
         get() = lock.read { field }
@@ -55,10 +52,8 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
 
     private var numOfRowsInViewport = 0
 
-    private val viewportTextMutableStateFlow: MutableStateFlow<List<CharSequence>> = MutableStateFlow(emptyList())
-
-    val textInViewport: StateFlow<List<CharSequence>> = viewportTextMutableStateFlow
-        get() = lock.read { field }
+    abstract var textInViewport: List<CharSequence>
+        protected set
 
     private var viewportCacheKey: ViewportCacheKey = ViewportCacheKey(viewport, viewportStartCharPosition)
 
@@ -120,7 +115,7 @@ class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: Bidi
                 } else {
                     emptyList()
                 }
-                viewportTextMutableStateFlow.value = viewportText
+                textInViewport = viewportText
                 println("rebuilt text cache")
             }
         }

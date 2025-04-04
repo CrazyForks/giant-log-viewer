@@ -53,6 +53,9 @@ compose.desktop {
             .groupValues[1]
 
         mainClass = "com.sunnychung.application.multiplatform.giantlogviewer.MainKt"
+        jvmArgs += "-Xmx80m"
+        jvmArgs += "-XX:MaxMetaspaceSize=40m"
+        jvmArgs += "-XX:+UseStringDeduplication"
 //        jvmArgs += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5025" // to enable debugger for debug use only
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
