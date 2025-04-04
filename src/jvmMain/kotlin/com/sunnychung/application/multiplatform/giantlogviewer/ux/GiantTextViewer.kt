@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -170,5 +171,13 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
 
     LaunchedEffect(filePath, refreshKey) {
         focusRequester.requestFocus()
+    }
+
+    DisposableEffect(filePath, refreshKey) {
+        onDispose {
+            println("Disposing ${fileReader.filePath}")
+            fileReader.close()
+            println("Disposed ${fileReader.filePath}")
+        }
     }
 }

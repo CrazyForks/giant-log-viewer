@@ -9,7 +9,7 @@ import kotlin.concurrent.write
 
 private const val BLOCK_CURRENT = 1
 
-class GiantFileReader(private val filePath: String, private val blockSize: Int = 1 * 1024 * 1024) : AutoCloseable {
+class GiantFileReader(val filePath: String, private val blockSize: Int = 1 * 1024 * 1024) : AutoCloseable {
     private val file = RandomAccessFile(filePath, "r")
 
     private val blockCacheLock = ReentrantReadWriteLock()
