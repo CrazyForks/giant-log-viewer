@@ -34,6 +34,8 @@ kotlin {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation("io.github.sunny-chung:bigtext-ui-composable:2.1.0")
+                implementation("io.github.sunny-chung:kdatetime-multiplatform:1.1.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.1")
             }
         }
         val jvmTest by getting {
