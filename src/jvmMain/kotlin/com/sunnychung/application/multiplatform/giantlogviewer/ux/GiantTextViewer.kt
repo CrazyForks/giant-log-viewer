@@ -76,7 +76,7 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
 
     val focusRequester = remember { FocusRequester() }
 
-    remember(componentWidth, componentHeight, density) {
+    remember(filePager, componentWidth, componentHeight, density) {
         filePager.viewport = Viewport(componentWidth, componentHeight, density.density)
     }
 
