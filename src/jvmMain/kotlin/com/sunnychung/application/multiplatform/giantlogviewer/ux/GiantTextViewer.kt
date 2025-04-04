@@ -97,6 +97,8 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
 
                     e.key == Key.G && e.isShiftPressed -> filePager.moveToTheLastRow()
                     e.key == Key.DirectionDown && e.isCtrlOrCmdPressed() -> filePager.moveToTheLastRow()
+                    e.key == Key.G -> filePager.moveToTheFirstRow()
+                    e.key == Key.DirectionUp && e.isCtrlOrCmdPressed() -> filePager.moveToTheFirstRow()
 
                     e.key == Key.DirectionUp -> filePager.moveToPrevRow()
                     e.key == Key.DirectionDown -> filePager.moveToNextRow()

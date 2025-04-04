@@ -315,6 +315,20 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
         }
     }
 
+    fun moveToTheFirstRow() {
+        lock.write {
+            viewportStartBytePosition = 0L
+            rebuildCacheIfInvalid()
+        }
+    }
+
+    internal fun moveToBytePosition(bytePosition: Long) {
+        lock.write {
+            viewportStartBytePosition = bytePosition
+            rebuildCacheIfInvalid()
+        }
+    }
+
     private data class ViewportCacheKey(val viewport: Viewport, val viewportStartBytePosition: Long)
 }
 
