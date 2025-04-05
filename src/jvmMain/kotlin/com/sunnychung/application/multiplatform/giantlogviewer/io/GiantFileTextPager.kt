@@ -98,6 +98,12 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
                     rowBytePositions += manyTextByteRange.start
 
                     fun layoutLines(line: String) {
+                        if (line.isEmpty()) { // an empty line is still a line to be displayed
+                            rows += ""
+                            rowBytePositions += rowBytePositions.last()
+                            return
+                        }
+
                         val (rowStarts, lastRowWidth) = textLayouter.layoutOneLine(line, viewport.width.toFloat(), 0f, 0)
                         var lastRowStart = 0
                         rowStarts.forEach {
