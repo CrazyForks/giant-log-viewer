@@ -103,6 +103,8 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
     ) }
     var isSearchBackwardDefault by remember { mutableStateOf(true) }
 
+    var searchCursor by remember(filePager) { mutableStateOf(0L) }
+
     fun currentSearchRegex(): Regex? {
         if (searchEntry.isEmpty()) {
             return null
@@ -168,7 +170,12 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
 
             onSelectFile(file)
 
-            GiantTextViewer(filePath = selectedFilePath, modifier = Modifier.matchParentSize(), onPagerReady = { filePager = it })
+            GiantTextViewer(
+                filePath = selectedFilePath,
+                modifier = Modifier.matchParentSize(),
+                onPagerReady = { filePager = it },
+                onNavigate = { searchCursor = it },
+            )
         }
 
         if (isSearchBarVisible) {
@@ -190,13 +197,24 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                 onClickPrev = {
                     val regex = currentSearchRegex() ?: return@TextSearchBar
                     val pager = filePager ?: return@TextSearchBar
-                    val result = pager.searchBackward(pager.viewportStartBytePosition, regex)
+                    val result = pager.searchBackward(searchCursor, regex)
                     if (result >= 0) {
+                        searchCursor = result
+                        println("search found at $result")
                         pager.moveToRowOfBytePosition(result)
                     }
                 },
                 onClickNext = {
-                    TODO()
+                    val regex = currentSearchRegex() ?: return@TextSearchBar
+                    val pager = filePager ?: return@TextSearchBar
+                    if (pager.viewportStartBytePosition < pager.fileReader.lengthInBytes()) {
+                        val result = pager.searchAtAndForward(searchCursor + 1, regex)
+                        if (result >= 0) {
+                            searchCursor = result
+                            println("search found at $result")
+                            pager.moveToRowOfBytePosition(result)
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()

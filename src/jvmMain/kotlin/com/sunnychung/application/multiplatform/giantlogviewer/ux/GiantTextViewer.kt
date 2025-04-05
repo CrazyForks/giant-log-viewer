@@ -53,7 +53,13 @@ import java.io.File
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0, onPagerReady: (GiantFileTextPager?) -> Unit) {
+fun GiantTextViewer(
+    modifier: Modifier,
+    filePath: String,
+    refreshKey: Int = 0,
+    onPagerReady: (GiantFileTextPager?) -> Unit,
+    onNavigate: (bytePosition: Long) -> Unit
+) {
     val file = File(filePath)
     if (!file.isFile) {
         println("File is not a file")
@@ -99,18 +105,18 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0, o
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
                 when {
-                    e.key == Key.F -> filePager.moveToNextPage()
-                    e.key == Key.B -> filePager.moveToPrevPage()
-                    e.key == Key.DirectionUp && e.isAltPressed -> filePager.moveToPrevPage()
-                    e.key == Key.DirectionDown && e.isAltPressed -> filePager.moveToNextPage()
+                    e.key == Key.F -> { filePager.moveToNextPage(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.B -> { filePager.moveToPrevPage(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.DirectionUp && e.isAltPressed -> { filePager.moveToPrevPage(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.DirectionDown && e.isAltPressed -> { filePager.moveToNextPage(); onNavigate(filePager.viewportStartBytePosition) }
 
-                    e.key == Key.G && e.isShiftPressed -> filePager.moveToTheLastRow()
-                    e.key == Key.DirectionDown && e.isCtrlOrCmdPressed() -> filePager.moveToTheLastRow()
-                    e.key == Key.G -> filePager.moveToTheFirstRow()
-                    e.key == Key.DirectionUp && e.isCtrlOrCmdPressed() -> filePager.moveToTheFirstRow()
+                    e.key == Key.G && e.isShiftPressed -> { filePager.moveToTheLastRow(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.DirectionDown && e.isCtrlOrCmdPressed() -> { filePager.moveToTheLastRow(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.G -> { filePager.moveToTheFirstRow(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.DirectionUp && e.isCtrlOrCmdPressed() -> { filePager.moveToTheFirstRow(); onNavigate(filePager.viewportStartBytePosition) }
 
-                    e.key == Key.DirectionUp -> filePager.moveToPrevRow()
-                    e.key == Key.DirectionDown -> filePager.moveToNextRow()
+                    e.key == Key.DirectionUp -> { filePager.moveToPrevRow(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.DirectionDown -> { filePager.moveToNextRow(); onNavigate(filePager.viewportStartBytePosition) }
                     else -> {
 //                    return@onKeyEvent false
                         return@onPreviewKeyEvent false
