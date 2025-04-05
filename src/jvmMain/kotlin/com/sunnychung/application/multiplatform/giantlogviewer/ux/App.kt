@@ -217,7 +217,12 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                 onClickPrev = {
                     val regex = currentSearchRegex() ?: return@TextSearchBar
                     val pager = filePager ?: return@TextSearchBar
-                    val result = pager.searchBackward(searchCursor, regex)
+                    val result = try {
+                        pager.searchBackward(searchCursor, regex)
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                        return@TextSearchBar
+                    }
                     if (!result.isEmpty()) {
                         searchCursor = result.start
                         println("search found at $result")
@@ -231,7 +236,12 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                     val regex = currentSearchRegex() ?: return@TextSearchBar
                     val pager = filePager ?: return@TextSearchBar
                     if (pager.viewportStartBytePosition < pager.fileReader.lengthInBytes()) {
-                        val result = pager.searchAtAndForward(searchCursor + 1, regex)
+                        val result = try {
+                            pager.searchAtAndForward(searchCursor + 1, regex)
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                            return@TextSearchBar
+                        }
                         if (!result.isEmpty()) {
                             searchCursor = result.start
                             println("search found at $result")
