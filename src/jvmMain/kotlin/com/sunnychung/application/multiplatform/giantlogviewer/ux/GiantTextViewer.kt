@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
@@ -59,6 +60,7 @@ fun GiantTextViewer(
     modifier: Modifier,
     filePath: String,
     refreshKey: Int = 0,
+    highlightByteRange: LongRange,
     onPagerReady: (GiantFileTextPager?) -> Unit,
     onNavigate: (bytePosition: Long) -> Unit,
     onSearchRequest: (SearchMode) -> Unit,
@@ -154,6 +156,7 @@ fun GiantTextViewer(
             }
         ) {
             val textToDisplay: List<CharSequence> = filePager.textInViewport
+            val bytePositionsOfDisplay: List<Long> = filePager.startBytePositionsInViewport
 //        println("textToDisplay:\n$textToDisplay")
             val lineHeight = (textLayouter.charMeasurer as ComposeUnicodeCharMeasurer).getRowHeight()
             Canvas(modifier = Modifier.matchParentSize()) {
@@ -163,6 +166,7 @@ fun GiantTextViewer(
                     val rowYOffset = rowRelativeIndex * lineHeight
                     val globalXOffset = 0f
                     var accumulateXOffset = 0f
+                    var bytePosition = bytePositionsOfDisplay[rowRelativeIndex]
                     row.indices.forEach { i ->
                         var charAnnotated = row.subSequence(i, i + 1)
                         val char = charAnnotated.first()
@@ -177,6 +181,15 @@ fun GiantTextViewer(
                         }
                         val charWidth = textLayouter.measureCharWidth(charAnnotated)
                         val charYOffset = textLayouter.measureCharYOffset(charAnnotated)
+
+                        if (bytePosition in highlightByteRange) {
+                            drawRect(
+                                color = Color(red = 0.85f, green = 0.6f, blue = 0f),
+                                topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
+                                size = Size(charWidth, lineHeight),
+                            )
+                        }
+
 //                        BasicText(
 //                            charAnnotated.annotatedString(),
 //                            style = textStyle,
@@ -198,6 +211,7 @@ fun GiantTextViewer(
                         )
 
                         accumulateXOffset += charWidth
+                        bytePosition += charAnnotated.string().toByteArray(Charsets.UTF_8).size
                     }
                 }
 //                }

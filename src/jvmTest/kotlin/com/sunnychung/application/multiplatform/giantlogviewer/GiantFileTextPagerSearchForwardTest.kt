@@ -2,6 +2,7 @@ package com.sunnychung.application.multiplatform.giantlogviewer
 
 import com.sunnychung.application.multiplatform.giantlogviewer.io.CoroutineGiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
+import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.util.DivisibleWidthCharMeasurer
@@ -192,11 +193,12 @@ private fun verifySearch(file: File, fileContent: String, searchPattern: String,
     }
 }
 
-private fun firstBytePositionOf(content: String, regex: Regex, start: Long): Long {
+private fun firstBytePositionOf(content: String, regex: Regex, start: Long): LongRange {
     val searchStart = binarySearchForMinIndexOfValueAtLeast(content.indices, start.toInt()) {
         content.substring(0 ..< it).toByteArray(Charsets.UTF_8).size
-    }.takeIf { it >= 0 } ?: return -1L
+    }.takeIf { it >= 0 } ?: return GiantFileTextPager.NOT_FOUND
     return regex.find(content, searchStart)?.let {
-        content.substring(0 ..< it.range.start).toByteArray(Charsets.UTF_8).size.toLong()
-    } ?: -1L
+        content.substring(0 ..< it.range.start).toByteArray(Charsets.UTF_8).size.toLong() ..<
+            content.substring(0 ..< it.range.endExclusive).toByteArray(Charsets.UTF_8).size.toLong()
+    } ?: GiantFileTextPager.NOT_FOUND
 }

@@ -113,6 +113,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
     var isSearchBackwardDefault by remember { mutableStateOf(true) }
 
     var searchCursor by remember(filePager) { mutableStateOf(0L) }
+    var highlightByteRange by remember(filePager) { mutableStateOf(0L .. -1L) }
 
     fun currentSearchRegex(): Regex? {
         if (searchEntry.isEmpty()) {
@@ -181,6 +182,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
 
             GiantTextViewer(
                 filePath = selectedFilePath,
+                highlightByteRange = highlightByteRange,
                 onPagerReady = { filePager = it },
                 onNavigate = { searchCursor = it },
                 onSearchRequest = {
@@ -216,22 +218,28 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                     val regex = currentSearchRegex() ?: return@TextSearchBar
                     val pager = filePager ?: return@TextSearchBar
                     val result = pager.searchBackward(searchCursor, regex)
-                    if (result >= 0) {
-                        searchCursor = result
+                    if (!result.isEmpty()) {
+                        searchCursor = result.start
                         println("search found at $result")
-                        pager.moveToRowOfBytePosition(result)
+                        pager.moveToRowOfBytePosition(result.start)
+                    } else {
+//                        searchCursor = 0
                     }
+                    highlightByteRange = result
                 },
                 onClickNext = {
                     val regex = currentSearchRegex() ?: return@TextSearchBar
                     val pager = filePager ?: return@TextSearchBar
                     if (pager.viewportStartBytePosition < pager.fileReader.lengthInBytes()) {
                         val result = pager.searchAtAndForward(searchCursor + 1, regex)
-                        if (result >= 0) {
-                            searchCursor = result
+                        if (!result.isEmpty()) {
+                            searchCursor = result.start
                             println("search found at $result")
-                            pager.moveToRowOfBytePosition(result)
+                            pager.moveToRowOfBytePosition(result.start)
+                        } else {
+//                            searchCursor = pager.fileReader.lengthInBytes()
                         }
+                        highlightByteRange = result
                     }
                 },
                 modifier = Modifier
