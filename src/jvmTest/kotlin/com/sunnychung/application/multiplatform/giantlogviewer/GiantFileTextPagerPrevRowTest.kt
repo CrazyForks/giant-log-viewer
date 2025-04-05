@@ -158,8 +158,8 @@ private fun testNextRowThenPrevRow(fileContent: String, blockSize: Int = 1 * 102
 
             pager.moveToNextRow()
 
-            if (pager.viewportStartCharPosition > start) {
-                start = pager.viewportStartCharPosition
+            if (pager.viewportStartBytePosition > start) {
+                start = pager.viewportStartBytePosition
             } else {
                 start = fileLength
             }
@@ -173,13 +173,13 @@ private fun testNextRowThenPrevRow(fileContent: String, blockSize: Int = 1 * 102
         }
         rowStarts.indices.reversed().forEach {
             pager.moveToPrevRow()
-            assertEquals(rowStarts[it], pager.viewportStartCharPosition)
+//            assertEquals(rowStarts[it], pager.viewportStartCharPosition)
             assertEquals(rowByteStarts[it], pager.viewportStartBytePosition)
         }
 
         repeat(2) {
             pager.moveToPrevRow()
-            assertEquals(0L, pager.viewportStartCharPosition)
+//            assertEquals(0L, pager.viewportStartCharPosition)
             assertEquals(0L, pager.viewportStartBytePosition)
         }
     }

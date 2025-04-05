@@ -194,11 +194,11 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
         }
     }
 
-    internal fun moveToPrev(numOfRowsToMove: Int, startBytePosition: Long = viewportStartBytePosition) {
+    internal fun findBytePositionOfPrevRow(numOfRowsToMove: Int, startBytePosition: Long): Long {
         lock.write {
             val numOfRowsInViewport = floor(viewport.height / rowHeight()).roundToInt()
             if (numOfRowsInViewport == 0) {
-                return
+                return startBytePosition // a dummy value to prevent changes
             }
             val maxNumOfCharInARow = maxNumOfCharInARow()
             val maxNumOfCharInViewport = maxNumOfCharInARow * numOfRowsInViewport
@@ -220,10 +220,10 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
 
                 if (manyTextWithExtra.size - extraByteLength <= 0) {
                     // has reached the start of string although the move request is not completely fulfilled
-                    viewportStartBytePosition = 0L
-                    viewportStartCharPosition = 0L
-                    rebuildCacheIfInvalid()
-                    return
+//                    viewportStartBytePosition = 0L
+//                    viewportStartCharPosition = 0L
+//                    rebuildCacheIfInvalid()
+                    return 0L
                 }
 
                 manyText =
@@ -271,11 +271,12 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
                     val prevPageStart = rowStarts.getOrNull((rowStarts.size - numOfRowsToMove).coerceAtLeast(0))
                     if (prevPageStart != null) {
                         // TODO overflow is possible
-                        viewportStartBytePosition = byteRangeWithExtra.start +
+//                        viewportStartBytePosition = byteRangeWithExtra.start +
+//                            manyText.substring(0 ..< prevPageStart.toInt()).toByteArray(Charsets.UTF_8).size
+//                        viewportStartCharPosition -= manyText.length - prevPageStart
+//                        rebuildCacheIfInvalid()
+                        return byteRangeWithExtra.start +
                             manyText.substring(0 ..< prevPageStart.toInt()).toByteArray(Charsets.UTF_8).size
-                        viewportStartCharPosition -= manyText.length - prevPageStart
-                        rebuildCacheIfInvalid()
-                        return
                     }
                 }
                 lastBytePosition = byteRangeWithExtra.start
@@ -284,6 +285,24 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
                 readByteEndInclusive = (readByteStart + (maxNumOfCharInViewport + 2) * 4 + 3).coerceAtMost(lastReadStart + 4 + 3)
             }
         }
+    }
+
+    protected fun findBytePositionOfStartOfRow(bytePosition: Long): Long {
+        val (lastPortionBytes, lastPortionRange) = fileReader.readStringBytes(
+            (bytePosition - 7).coerceAtLeast(0L),
+            14
+        )
+        val lastChar = lastPortionBytes.getOrNull((bytePosition - 1L - lastPortionRange.start).toInt())
+        return if (lastChar?.toInt()?.toChar() == '\n') {
+            bytePosition
+        } else {
+            findBytePositionOfPrevRow(1, bytePosition)
+        }
+    }
+
+    internal fun moveToPrev(numOfRowsToMove: Int, startBytePosition: Long = viewportStartBytePosition) {
+        viewportStartBytePosition = findBytePositionOfPrevRow(numOfRowsToMove, startBytePosition)
+        rebuildCacheIfInvalid()
     }
 
     fun moveToPrevPage() {
@@ -301,17 +320,8 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
             return
         }
         lock.write {
-            val (lastPortionBytes, lastPortionRange) = fileReader.readStringBytes(
-                (fileLength - 7).coerceAtLeast(0L),
-                14
-            )
-            val lastChar = lastPortionBytes.getOrNull((fileLength - 1L - lastPortionRange.start).toInt())
-            if (lastChar?.toInt()?.toChar() == '\n') {
-                viewportStartBytePosition = fileLength
-                rebuildCacheIfInvalid()
-            } else {
-                moveToPrev(numOfRowsToMove = 1, startBytePosition = fileLength)
-            }
+            viewportStartBytePosition = findBytePositionOfStartOfRow(fileLength)
+            rebuildCacheIfInvalid()
         }
     }
 

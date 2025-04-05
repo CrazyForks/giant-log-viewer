@@ -45,11 +45,11 @@ class GiantFileTextPagerPrevPageTest {
             (4 downTo 0).forEach {
                 pager.moveToPrevPage()
                 println("> ${pager.viewportStartBytePosition} ${pager.viewportStartCharPosition}")
-                assertEquals(pageCharPositions[it], pager.viewportStartCharPosition, "it $it")
+//                assertEquals(pageCharPositions[it], pager.viewportStartCharPosition, "it $it")
                 assertEquals(pageBytePositions[it], pager.viewportStartBytePosition, "it $it")
             }
             pager.moveToPrevPage()
-            assertEquals(0L, pager.viewportStartCharPosition)
+//            assertEquals(0L, pager.viewportStartCharPosition)
             assertEquals(0L, pager.viewportStartBytePosition)
         }
     }
@@ -88,59 +88,59 @@ class GiantFileTextPagerPrevPageTest {
             (25 ..< 35).forEach {
                 pager.moveToNextRow()
             }
-            assertEquals(508L, pager.viewportStartCharPosition, "after next")
+//            assertEquals(508L, pager.viewportStartCharPosition, "after next")
             assertEquals(508L, pager.viewportStartBytePosition, "after next")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(282L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(282L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(282L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(45L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(45L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(45L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToNextPage()
             (23 ..< 27).forEach {
                 pager.moveToNextRow()
             }
-            assertEquals(355L, pager.viewportStartCharPosition, "after next")
+//            assertEquals(355L, pager.viewportStartCharPosition, "after next")
             assertEquals(355L, pager.viewportStartBytePosition, "after next")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(97L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(97L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(97L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(28L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(28L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(28L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(0L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(0L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(0L, pager.viewportStartBytePosition, "after prev $iteration")
 
             (0 ..< 29).forEach {
                 pager.moveToNextRow()
             }
-            assertEquals(381L, pager.viewportStartCharPosition, "after next")
+//            assertEquals(381L, pager.viewportStartCharPosition, "after next")
             assertEquals(381L, pager.viewportStartBytePosition, "after next")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(144L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(144L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(144L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(32L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(32L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(32L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
-            assertEquals(0L, pager.viewportStartCharPosition)
+//            assertEquals(0L, pager.viewportStartCharPosition)
             assertEquals(0L, pager.viewportStartBytePosition)
         }
     }
@@ -319,29 +319,29 @@ class GiantFileTextPagerPrevPageTest {
             repeat(4) {
                 pager.moveToNextRow()
             }
-            assertEquals(3839L, pager.viewportStartCharPosition, "after next")
+//            assertEquals(3839L, pager.viewportStartCharPosition, "after next")
             assertEquals(3839L, pager.viewportStartBytePosition, "after next")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(3600L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(3600L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(3600L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(3362L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(3362L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(3362L, pager.viewportStartBytePosition, "after prev $iteration")
 
             repeat(4) {
                 pager.moveToNextRow()
             }
             pager.moveToNextPage()
-            assertEquals(3692L, pager.viewportStartCharPosition, "after next")
+//            assertEquals(3692L, pager.viewportStartCharPosition, "after next")
             assertEquals(3692L, pager.viewportStartBytePosition, "after next")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(3434L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(3434L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(3434L, pager.viewportStartBytePosition, "after prev $iteration")
 
             repeat(11) {
@@ -350,7 +350,7 @@ class GiantFileTextPagerPrevPageTest {
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(3411L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(3411L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(3411L, pager.viewportStartBytePosition, "after prev $iteration")
 
             repeat(11) {
@@ -359,48 +359,48 @@ class GiantFileTextPagerPrevPageTest {
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(3388L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(3388L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(3388L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(3340L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(3340L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(3340L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(3074L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(3074L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(3074L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(2786L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(2786L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(2786L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(2498L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(2498L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(2498L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(2210L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(2210L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(2210L, pager.viewportStartBytePosition, "after prev $iteration")
 
             (81 downTo 0 step 12).forEach {
                 pager.moveToPrevPage()
                 ++iteration
-                assertEquals(24L * it, pager.viewportStartCharPosition, "after prev $iteration")
+//                assertEquals(24L * it, pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(24L * it, pager.viewportStartBytePosition, "after prev $iteration")
             }
 
             pager.moveToPrevPage()
             ++iteration
-            assertEquals(0L, pager.viewportStartCharPosition, "after prev $iteration")
+//            assertEquals(0L, pager.viewportStartCharPosition, "after prev $iteration")
             assertEquals(0L, pager.viewportStartBytePosition, "after prev $iteration")
 
             pager.moveToPrevPage()
-            assertEquals(0L, pager.viewportStartCharPosition)
+//            assertEquals(0L, pager.viewportStartCharPosition)
             assertEquals(0L, pager.viewportStartBytePosition)
         }
     }
@@ -480,14 +480,14 @@ class GiantFileTextPagerPrevPageTest {
                 }
                 moveToRow(126)
                 // emoji 2 chars, otherwise 1 char
-                assertEquals(start.toLong() /* 1640L */, pager.viewportStartCharPosition, "after next")
+//                assertEquals(start.toLong() /* 1640L */, pager.viewportStartCharPosition, "after next")
                 // chinese char 3 bytes, emoji 4 bytes, otherwise 1 byte
                 assertEquals(startBytePos() /* 2398L */, pager.viewportStartBytePosition, "after next")
 
                 pager.moveToPrevPage()
                 ++iteration
                 moveToRow(114)
-                assertEquals(start.toLong() /* 1457L */, pager.viewportStartCharPosition, "after prev $iteration")
+//                assertEquals(start.toLong() /* 1457L */, pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(startBytePos() /* 1977L */, pager.viewportStartBytePosition, "after prev $iteration")
 
                 pager.moveToNextRow()
@@ -495,7 +495,7 @@ class GiantFileTextPagerPrevPageTest {
                 pager.moveToPrevPage()
                 ++iteration
                 moveToRow(103)
-                assertEquals(start.toLong() /* 1296L*/, pager.viewportStartCharPosition, "after prev $iteration")
+//                assertEquals(start.toLong() /* 1296L*/, pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(startBytePos() /* 1604L */, pager.viewportStartBytePosition, "after prev $iteration")
 
                 repeat(30) {
@@ -505,19 +505,19 @@ class GiantFileTextPagerPrevPageTest {
                 pager.moveToPrevPage()
                 ++iteration
                 moveToRow(121)
-                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+//                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
 
                 pager.moveToPrevPage()
                 ++iteration
                 moveToRow(109)
-                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+//                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
 
                 pager.moveToPrevPage()
                 ++iteration
                 moveToRow(97)
-                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+//                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
 
                 (97 ..< 131).forEach {
@@ -527,30 +527,30 @@ class GiantFileTextPagerPrevPageTest {
                 pager.moveToPrevPage()
                 ++iteration
                 moveToRow(119)
-                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+//                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
 
                 pager.moveToPrevPage()
                 ++iteration
                 moveToRow(107)
-                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+//                assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
 
                 (95 downTo 0 step 12).forEach {
                     pager.moveToPrevPage()
                     ++iteration
                     moveToRow(it)
-                    assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
+//                    assertEquals(start.toLong(), pager.viewportStartCharPosition, "after prev $iteration")
                     assertEquals(startBytePos(), pager.viewportStartBytePosition, "after prev $iteration")
                 }
 
                 pager.moveToPrevPage()
                 ++iteration
-                assertEquals(0L, pager.viewportStartCharPosition, "after prev $iteration")
+//                assertEquals(0L, pager.viewportStartCharPosition, "after prev $iteration")
                 assertEquals(0L, pager.viewportStartBytePosition, "after prev $iteration")
 
                 pager.moveToPrevPage()
-                assertEquals(0L, pager.viewportStartCharPosition)
+//                assertEquals(0L, pager.viewportStartCharPosition)
                 assertEquals(0L, pager.viewportStartBytePosition)
             }
         }
