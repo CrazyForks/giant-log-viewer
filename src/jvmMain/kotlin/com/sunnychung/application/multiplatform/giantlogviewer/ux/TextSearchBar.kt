@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -37,6 +40,8 @@ fun TextSearchBar(
     onClickPrev: () -> Unit,
     onClickNext: () -> Unit,
 ) {
+    val focusRequester = remember(key) { FocusRequester() }
+
     Row(
         modifier = modifier.onPreviewKeyEvent { e ->
             if (e.type == KeyEventType.KeyDown && e.key == Key.Enter) {
@@ -69,12 +74,16 @@ fun TextSearchBar(
                 )
             },
             textStyle = TextStyle(
-                fontFamily = LocalFont.current.normalFontFamily,
+                fontFamily = LocalFont.current.monospaceFontFamily,
             ),
             maxLines = 1,
             singleLine = true, // not allow '\n'
             contentPadding = PaddingValues(4.dp),
-            modifier = Modifier.weight(1f),
+            onFinishInit = {
+                focusRequester.requestFocus()
+            },
+            modifier = Modifier.weight(1f)
+                .focusRequester(focusRequester),
         )
         TextToggleButton(
             text = ".*",

@@ -40,6 +40,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReade
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
+import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
@@ -58,7 +59,8 @@ fun GiantTextViewer(
     filePath: String,
     refreshKey: Int = 0,
     onPagerReady: (GiantFileTextPager?) -> Unit,
-    onNavigate: (bytePosition: Long) -> Unit
+    onNavigate: (bytePosition: Long) -> Unit,
+    onSearchRequest: (SearchMode) -> Unit,
 ) {
     val file = File(filePath)
     if (!file.isFile) {
@@ -105,6 +107,8 @@ fun GiantTextViewer(
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
                 when {
+                    e.key == Key.F && e.isCtrlOrCmdPressed() -> onSearchRequest(SearchMode.Forward)
+
                     e.key == Key.F -> { filePager.moveToNextPage(); onNavigate(filePager.viewportStartBytePosition) }
                     e.key == Key.B -> { filePager.moveToPrevPage(); onNavigate(filePager.viewportStartBytePosition) }
                     e.key == Key.DirectionUp && e.isAltPressed -> { filePager.moveToPrevPage(); onNavigate(filePager.viewportStartBytePosition) }
@@ -117,6 +121,11 @@ fun GiantTextViewer(
 
                     e.key == Key.DirectionUp -> { filePager.moveToPrevRow(); onNavigate(filePager.viewportStartBytePosition) }
                     e.key == Key.DirectionDown -> { filePager.moveToNextRow(); onNavigate(filePager.viewportStartBytePosition) }
+
+                    e.key == Key.Slash && e.isShiftPressed -> onSearchRequest(SearchMode.Backward)
+                    e.key == Key.Slash -> onSearchRequest(SearchMode.Forward)
+                    e.key == Key.Escape -> onSearchRequest(SearchMode.None)
+
                     else -> {
 //                    return@onKeyEvent false
                         return@onPreviewKeyEvent false

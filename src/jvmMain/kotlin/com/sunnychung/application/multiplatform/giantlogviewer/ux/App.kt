@@ -19,7 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.DragData
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.onExternalDrag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -29,6 +36,7 @@ import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.help
 import com.sunnychung.application.giantlogviewer.generated.resources.info
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
+import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptions
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import java.io.File
@@ -90,9 +98,10 @@ fun App() {
 private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) -> Unit) {
     var selectedFilePath by remember { mutableStateOf("") }
 
+    val viewerFocusRequester = remember { FocusRequester() }
     var filePager: GiantFileTextPager? by remember { mutableStateOf(null) }
 
-    var isSearchBarVisible by remember { mutableStateOf(true) }
+    var isSearchBarVisible by remember { mutableStateOf(false) }
     var searchEntry by remember { mutableStateOf("") }
     var searchOptions by remember { mutableStateOf(
         SearchOptions(
@@ -172,9 +181,18 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
 
             GiantTextViewer(
                 filePath = selectedFilePath,
-                modifier = Modifier.matchParentSize(),
                 onPagerReady = { filePager = it },
                 onNavigate = { searchCursor = it },
+                onSearchRequest = {
+                    if (it == SearchMode.None) {
+                        isSearchBarVisible = false
+                    } else {
+                        isSearchBarVisible = true
+                        isSearchBackwardDefault = (it == SearchMode.Backward)
+                    }
+                },
+                modifier = Modifier.matchParentSize()
+                    .focusRequester(viewerFocusRequester)
             )
         }
 
@@ -220,6 +238,16 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                     .fillMaxWidth()
                     .background(Color(.45f, .45f, .45f))
                     .padding(2.dp)
+                    .onKeyEvent { e ->
+//                        println("search onKeyEvent ${e.key}")
+                        if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) {
+                            isSearchBarVisible = false
+                            viewerFocusRequester.requestFocus()
+                            true
+                        } else {
+                            false
+                        }
+                    }
             )
         }
     }

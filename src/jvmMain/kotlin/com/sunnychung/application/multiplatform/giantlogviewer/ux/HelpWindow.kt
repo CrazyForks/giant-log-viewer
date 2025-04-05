@@ -2,8 +2,10 @@ package com.sunnychung.application.multiplatform.giantlogviewer.ux
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
@@ -46,12 +48,12 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
         state = WindowState(
             position = WindowPosition.Aligned(Alignment.Center),
             width = 600.dp,
-            height = 250.dp,
+            height = 350.dp,
         ),
     ) {
         setMinimumSize(width = 600.dp, 250.dp)
 
-        Row {
+        Row(Modifier.background(Color.Cyan)) {
             KeyBindingTable(
                 title = buildAnnotatedString {
                     append("The ")
@@ -67,8 +69,11 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     KeyBinding("b", "One window backward"),
                     KeyBinding("⇧G", "End of file"),
                     KeyBinding("g", "Start of file"),
+                    KeyBinding("⇧/", "Search backward"),
+                    KeyBinding("/", "Search forward"),
+                    KeyBinding("Esc", "Exit search"),
                 ),
-                modifier = Modifier.weight(.42f)
+                modifier = Modifier.weight(.42f).fillMaxHeight()
             )
             KeyBindingTable(
                 title = AnnotatedString("The memory-less style"),
@@ -79,8 +84,12 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     KeyBinding("Alt/Option-↑", "One window backward"),
                     KeyBinding("Ctrl/Command-↓", "End of file"),
                     KeyBinding("Ctrl/Command-↑", "Start of file"),
+                    KeyBinding("Ctrl/Command-F", "Search forward"),
+                    KeyBinding("Esc", "Exit search"),
+                    KeyBinding("Enter", "Search next"),
+                    KeyBinding("Shift-Enter", "Search previous"),
                 ),
-                modifier = Modifier.weight(.58f)
+                modifier = Modifier.weight(.58f).fillMaxHeight()
             )
         }
     }
