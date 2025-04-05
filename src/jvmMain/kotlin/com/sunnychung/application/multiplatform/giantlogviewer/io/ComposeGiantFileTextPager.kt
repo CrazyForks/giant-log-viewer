@@ -10,4 +10,5 @@ class ComposeGiantFileTextPager(
     textLayouter: BidirectionalTextLayouter
 ) : GiantFileTextPager(fileReader, textLayouter) {
     override var textInViewport: List<CharSequence> by mutableStateOf(emptyList())
+    override var startBytePositionsInViewport: List<Long> by mutableStateOf(emptyList())
 }

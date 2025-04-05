@@ -22,4 +22,6 @@ class CoroutineGiantFileTextPager(
 
     val textInViewportStateFlow: StateFlow<List<CharSequence>> = viewportTextMutableStateFlow
 
+    override var startBytePositionsInViewport: List<Long> = emptyList()
+
 }

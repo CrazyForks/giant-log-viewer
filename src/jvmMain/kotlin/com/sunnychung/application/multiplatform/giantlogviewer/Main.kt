@@ -1,7 +1,9 @@
 package com.sunnychung.application.multiplatform.giantlogviewer
 
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import com.sunnychung.application.multiplatform.giantlogviewer.extension.setMinimumSize
 import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContext
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.App
 import kotlinx.coroutines.runBlocking
@@ -18,6 +20,7 @@ fun main(args: Array<String>) {
             onCloseRequest = ::exitApplication,
             title = "Giant Log Viewer",
         ) {
+            setMinimumSize(250.dp, 150.dp)
             App()
         }
     }
