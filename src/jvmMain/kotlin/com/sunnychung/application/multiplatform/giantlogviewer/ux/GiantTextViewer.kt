@@ -47,6 +47,7 @@ import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
 import com.sunnychung.lib.multiplatform.bigtext.util.annotatedString
 import com.sunnychung.lib.multiplatform.bigtext.util.buildAnnotatedStringPatched
 import com.sunnychung.lib.multiplatform.bigtext.util.debouncedStateOf
+import com.sunnychung.lib.multiplatform.bigtext.util.string
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import com.sunnychung.lib.multiplatform.kdatetime.extension.milliseconds
 import java.io.File
@@ -169,7 +170,7 @@ fun GiantTextViewer(
                             unicodeSequence = charAnnotated
                             return@forEach
                         } else if (char.isLowSurrogate() && unicodeSequence != null) {
-                            charAnnotated = buildAnnotatedStringPatched {
+                            charAnnotated = buildString {
                                 append(unicodeSequence)
                                 append(charAnnotated)
                             }
@@ -187,7 +188,7 @@ fun GiantTextViewer(
 
                         drawText(
                             textMeasurer = textMeasurer,
-                            text = charAnnotated.annotatedString(),
+                            text = charAnnotated.string(),
                             topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
                             size = Size(charWidth, lineHeight),
                             style = textStyle,
