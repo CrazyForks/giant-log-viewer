@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -25,6 +26,8 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -47,8 +50,10 @@ import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import com.sunnychung.lib.multiplatform.kdatetime.extension.milliseconds
 import java.io.File
 
+// TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
+fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0, onPagerReady: (GiantFileTextPager?) -> Unit) {
     val file = File(filePath)
     if (!file.isFile) {
         println("File is not a file")
@@ -83,6 +88,10 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
         }
     }
 
+    LaunchedEffect(filePager) {
+        onPagerReady(filePager)
+    }
+
     Row(modifier
 //        .onKeyEvent { e ->
         .onPreviewKeyEvent { e ->
@@ -111,6 +120,10 @@ fun GiantTextViewer(modifier: Modifier, filePath: String, refreshKey: Int = 0) {
                 return@onPreviewKeyEvent true
             }
             false
+        }
+        // not sure which Compose bug leading to require implementing "click to focus" manually
+        .onPointerEvent(eventType = PointerEventType.Press) {
+            focusRequester.requestFocus()
         }
         .focusRequester(focusRequester)
         .focusable()

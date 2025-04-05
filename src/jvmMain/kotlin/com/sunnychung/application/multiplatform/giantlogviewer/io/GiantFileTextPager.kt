@@ -339,6 +339,59 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
         }
     }
 
+    fun moveToRowOfBytePosition(bytePosition: Long) {
+        lock.write {
+            viewportStartBytePosition = findBytePositionOfStartOfRow(bytePosition)
+            rebuildCacheIfInvalid()
+        }
+    }
+
+    fun searchBackward(startBytePosition: Long, searchPredicate: Regex): Long {
+        val searchTailLength = searchPredicate.pattern
+        val searchTailSize = searchTailLength.toByteArray(Charsets.UTF_8).size
+        val searchPattern = searchPredicate
+        val windowSize = fileReader.blockSize.toLong() - searchTailSize
+
+        lock.write {
+            var readByteStart: Long = (startBytePosition - windowSize).coerceAtLeast(0)
+            var readByteEndInclusive: Long = (readByteStart + windowSize + searchTailSize - 1).coerceAtMost(startBytePosition + searchTailSize)
+            var manyText: String = ""
+            var lastBytePosition = startBytePosition
+            while (true) {
+                val (manyTextWithExtra, byteRangeWithExtra) = fileReader.readStringBytes(
+                    readByteStart,
+                    (readByteEndInclusive - readByteStart + 1L).toInt()
+                )
+                val extraByteLength = (byteRangeWithExtra.endExclusive - (lastBytePosition + searchTailSize)).coerceAtLeast(0L)
+
+                if (manyTextWithExtra.size - extraByteLength <= 0) {
+                    // has reached the start of string
+                    return -1L
+                }
+
+                manyText =
+                    String(manyTextWithExtra, 0, (manyTextWithExtra.size - extraByteLength).toInt(), Charsets.UTF_8) +
+                        manyText
+                val searchResult = searchPattern.findAll(manyText).toList() //.takeLast(numOfRowsToMove + 1)
+
+                searchResult.asReversed().forEach {
+                    val bytePositionStart = byteRangeWithExtra.start + manyText.substring(0 ..< it.range.first).toByteArray(Charsets.UTF_8).size
+                    if (bytePositionStart < startBytePosition) {
+                        return bytePositionStart
+                    }
+                }
+
+                lastBytePosition = byteRangeWithExtra.start
+                if (lastBytePosition <= 0) {
+                    return -1L
+                }
+                val lastReadStart: Long = readByteStart
+                readByteStart = (readByteStart - windowSize).coerceAtLeast(0)
+                readByteEndInclusive = (readByteStart + windowSize + searchTailSize - 1).coerceAtMost(lastReadStart + searchTailSize)
+            }
+        }
+    }
+
     private data class ViewportCacheKey(val viewport: Viewport, val viewportStartBytePosition: Long)
 }
 

@@ -28,9 +28,12 @@ import androidx.compose.ui.unit.dp
 import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.help
 import com.sunnychung.application.giantlogviewer.generated.resources.info
+import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
+import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptions
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import java.io.File
 import java.net.URI
+import java.util.regex.Pattern
 
 @Composable
 fun App() {
@@ -87,51 +90,119 @@ fun App() {
 private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) -> Unit) {
     var selectedFilePath by remember { mutableStateOf("") }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .onExternalDrag(
-                onDragStart = { drag ->
-                    println("drag: $drag | ${drag.dragData}")
-                },
-                onDrop = { drop ->
-                    println("drop: $drop | ${drop.dragData}")
-                    if (drop.dragData is DragData.FilesList) {
-                        println("drop files: ${(drop.dragData as DragData.FilesList).readFiles()}")
-                        val uri = URI((drop.dragData as DragData.FilesList).readFiles().first())
+    var filePager: GiantFileTextPager? by remember { mutableStateOf(null) }
 
-                        println("f: ${uri.scheme} ${File(uri).absolutePath}")
-                        selectedFilePath = File(uri).absolutePath
+    var isSearchBarVisible by remember { mutableStateOf(true) }
+    var searchEntry by remember { mutableStateOf("") }
+    var searchOptions by remember { mutableStateOf(
+        SearchOptions(
+            isRegex = false,
+            isCaseSensitive = true,
+            isWholeWord = false
+        )
+    ) }
+    var isSearchBackwardDefault by remember { mutableStateOf(true) }
+
+    fun currentSearchRegex(): Regex? {
+        if (searchEntry.isEmpty()) {
+            return null
+        }
+        val regexOption = if (searchOptions.isCaseSensitive) setOf() else setOf(RegexOption.IGNORE_CASE)
+        try {
+            val pattern = if (searchOptions.isRegex) {
+                searchEntry.toRegex(regexOption)
+            } else if (searchOptions.isWholeWord) {
+                "\\b${Pattern.quote(searchEntry)}\\b".toRegex(regexOption)
+            } else {
+                Pattern.quote(searchEntry).toRegex(regexOption)
+            }
+            return pattern
+        } catch (_: Throwable) {}
+        return null
+    }
+
+    Column(modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .onExternalDrag(
+                    onDragStart = { drag ->
+                        println("drag: $drag | ${drag.dragData}")
+                    },
+                    onDrop = { drop ->
+                        println("drop: $drop | ${drop.dragData}")
+                        if (drop.dragData is DragData.FilesList) {
+                            println("drop files: ${(drop.dragData as DragData.FilesList).readFiles()}")
+                            val uri = URI((drop.dragData as DragData.FilesList).readFiles().first())
+
+                            println("f: ${uri.scheme} ${File(uri).absolutePath}")
+                            selectedFilePath = File(uri).absolutePath
+                        }
                     }
-                }
+                )
+                .background(Color.Cyan)
+        ) {
+            if (selectedFilePath.isEmpty()) {
+                EmptyFileView()
+                onSelectFile(null)
+                return@Box
+            }
+
+            val file = File(selectedFilePath)
+            if (!file.exists()) {
+                ErrorView(message = "The selected object no longer exists")
+                onSelectFile(null)
+                return@Box
+            }
+            if (!file.isFile) {
+                ErrorView(message = "The selected object is not a file")
+                onSelectFile(null)
+                return@Box
+            }
+            if (!file.canRead()) {
+                ErrorView(message = "The selected file is not readable")
+                onSelectFile(null)
+                return@Box
+            }
+
+            onSelectFile(file)
+
+            GiantTextViewer(filePath = selectedFilePath, modifier = Modifier.matchParentSize(), onPagerReady = { filePager = it })
+        }
+
+        if (isSearchBarVisible) {
+            TextSearchBar(
+                key = selectedFilePath.replace("/", "\\/"),
+                text = searchEntry,
+                onTextChange = { searchEntry = it },
+                searchOptions = searchOptions,
+                isSearchBackwardDefault = isSearchBackwardDefault,
+                onToggleRegex = {
+                    searchOptions = searchOptions.copy(isRegex = it)
+                },
+                onToggleCaseSensitive = {
+                    searchOptions = searchOptions.copy(isCaseSensitive = it)
+                },
+                onToggleWholeWord = {
+                    searchOptions = searchOptions.copy(isWholeWord = it)
+                },
+                onClickPrev = {
+                    val regex = currentSearchRegex() ?: return@TextSearchBar
+                    val pager = filePager ?: return@TextSearchBar
+                    val result = pager.searchBackward(pager.viewportStartBytePosition, regex)
+                    if (result >= 0) {
+                        pager.moveToRowOfBytePosition(result)
+                    }
+                },
+                onClickNext = {
+                    TODO()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(.45f, .45f, .45f))
+                    .padding(2.dp)
             )
-            .background(Color.Cyan)
-    ) {
-        if (selectedFilePath.isEmpty()) {
-            EmptyFileView()
-            onSelectFile(null)
-            return@Box
         }
-
-        val file = File(selectedFilePath)
-        if (!file.exists()) {
-            ErrorView(message = "The selected object no longer exists")
-            onSelectFile(null)
-            return@Box
-        }
-        if (!file.isFile) {
-            ErrorView(message = "The selected object is not a file")
-            onSelectFile(null)
-            return@Box
-        }
-        if (!file.canRead()) {
-            ErrorView(message = "The selected file is not readable")
-            onSelectFile(null)
-            return@Box
-        }
-
-        onSelectFile(file)
-
-        GiantTextViewer(filePath = selectedFilePath, modifier = Modifier.fillMaxSize())
     }
 }

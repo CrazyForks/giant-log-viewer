@@ -9,7 +9,7 @@ import kotlin.concurrent.write
 
 private const val BLOCK_CURRENT = 1
 
-class GiantFileReader(val filePath: String, private val blockSize: Int = 1 * 1024 * 1024) : AutoCloseable {
+class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024) : AutoCloseable {
     private val file = RandomAccessFile(filePath, "r")
 
     private val blockCacheLock = ReentrantReadWriteLock()
@@ -122,7 +122,7 @@ class GiantFileReader(val filePath: String, private val blockSize: Int = 1 * 102
         // TODO refactor as a UTF-8 decoder
 
         if (length > blockSize) {
-            throw IllegalArgumentException("`length` should be less than or equal a block size")
+            throw IllegalArgumentException("`length` $length should be less than or equal a block size")
         }
 
         // Below works for ASCII or UTF-8 files
