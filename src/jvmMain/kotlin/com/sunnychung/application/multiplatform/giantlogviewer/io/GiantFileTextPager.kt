@@ -347,6 +347,8 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
     }
 
     fun searchBackward(startBytePosition: Long, searchPredicate: Regex): Long {
+        require(startBytePosition >= 0) { "startBytePosition should not be negative" }
+
         val searchTailLength = searchPredicate.pattern
         val searchTailSize = searchTailLength.toByteArray(Charsets.UTF_8).size
         val searchPattern = searchPredicate
@@ -365,13 +367,12 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
                 val extraByteLength = (byteRangeWithExtra.endExclusive - (lastBytePosition + searchTailSize)).coerceAtLeast(0L)
 
                 if (manyTextWithExtra.size - extraByteLength <= 0) {
-                    // has reached the start of string
+                    // has reached the start of file
                     return -1L
                 }
 
                 manyText =
-                    String(manyTextWithExtra, 0, (manyTextWithExtra.size - extraByteLength).toInt(), Charsets.UTF_8) +
-                        manyText
+                    String(manyTextWithExtra, 0, (manyTextWithExtra.size - extraByteLength).toInt(), Charsets.UTF_8) //+ manyText
                 val searchResult = searchPattern.findAll(manyText).toList() //.takeLast(numOfRowsToMove + 1)
 
                 searchResult.asReversed().forEach {
