@@ -38,9 +38,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
+import com.sunnychung.application.giantlogviewer.generated.resources.Res
+import com.sunnychung.application.giantlogviewer.generated.resources.appicon
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.setMinimumSize
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.lib.android.composabletable.ux.Table
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
@@ -48,6 +51,7 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
         visible = isVisible,
         onCloseRequest = onClose,
         title = "Help",
+        icon = painterResource(Res.drawable.appicon),
         state = WindowState(
             position = WindowPosition.Aligned(Alignment.Center),
             width = 600.dp,
