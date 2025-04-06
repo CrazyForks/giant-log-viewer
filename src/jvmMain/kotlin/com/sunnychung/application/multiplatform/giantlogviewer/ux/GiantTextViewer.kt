@@ -101,8 +101,8 @@ fun GiantTextViewer(
     val focusRequester = remember { FocusRequester() }
 
     var draggedPoint by remember { mutableStateOf<Offset>(Offset.Zero) }
-    var dragStartBytePosition by remember { mutableLongStateOf(0L) }
-    var dragEndBytePosition by remember { mutableLongStateOf(0L) }
+    var dragStartBytePosition by remember(filePath, refreshKey) { mutableLongStateOf(0L) }
+    var dragEndBytePosition by remember(filePath, refreshKey) { mutableLongStateOf(0L) }
 
     val (contentWidth, isContentWidthLatest) = debouncedStateOf(200.milliseconds(), tolerateCount = 1, filePager) {
         contentComponentWidth
@@ -274,7 +274,11 @@ fun GiantTextViewer(
         }
 
         VerticalIndicatorView(
-            value = (filePager.viewportStartBytePosition.toDouble() / fileReader.lengthInBytes().toDouble()).toFloat(),
+            value = if (fileReader.lengthInBytes() > 0) {
+                (filePager.viewportStartBytePosition.toDouble() / fileReader.lengthInBytes().toDouble()).toFloat()
+            } else {
+                1f
+            },
             modifier = Modifier.width(20.dp).fillMaxHeight()
         )
 
