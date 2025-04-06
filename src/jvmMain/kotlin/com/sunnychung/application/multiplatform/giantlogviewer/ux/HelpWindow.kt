@@ -55,7 +55,7 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
         state = WindowState(
             position = WindowPosition.Aligned(Alignment.Center),
             width = 600.dp,
-            height = 370.dp,
+            height = 400.dp,
         ),
         onKeyEvent = { e ->
             if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) {
