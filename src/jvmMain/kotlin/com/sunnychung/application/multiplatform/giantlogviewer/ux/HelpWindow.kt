@@ -2,7 +2,6 @@ package com.sunnychung.application.multiplatform.giantlogviewer.ux
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -21,6 +20,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -48,8 +51,16 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
         state = WindowState(
             position = WindowPosition.Aligned(Alignment.Center),
             width = 600.dp,
-            height = 350.dp,
+            height = 370.dp,
         ),
+        onKeyEvent = { e ->
+            if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) {
+                onClose()
+                true
+            } else {
+                false
+            }
+        }
     ) {
         setMinimumSize(width = 600.dp, 250.dp)
 
@@ -88,6 +99,7 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     KeyBinding("Esc", "Exit search"),
                     KeyBinding("Enter", "Search next"),
                     KeyBinding("Shift-Enter", "Search previous"),
+                    KeyBinding("Ctrl/Command-C", "Copy selection"),
                 ),
                 modifier = Modifier.weight(.58f).fillMaxHeight()
             )

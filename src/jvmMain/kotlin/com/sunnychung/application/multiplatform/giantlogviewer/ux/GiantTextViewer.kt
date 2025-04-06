@@ -1,7 +1,9 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.ux
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.onDrag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -11,6 +13,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -30,7 +34,9 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -52,9 +58,10 @@ import com.sunnychung.lib.multiplatform.bigtext.util.string
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import com.sunnychung.lib.multiplatform.kdatetime.extension.milliseconds
 import java.io.File
+import kotlin.math.floor
 
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun GiantTextViewer(
     modifier: Modifier,
@@ -85,9 +92,17 @@ fun GiantTextViewer(
     val fileReader = remember(filePath, refreshKey) {
         GiantFileReader(filePath)
     }
-    val filePager: GiantFileTextPager = remember(fileReader) { ComposeGiantFileTextPager(fileReader, textLayouter) }
+    val filePager: GiantFileTextPager = remember(fileReader, textLayouter) {
+        ComposeGiantFileTextPager(fileReader, textLayouter)
+    }
+
+    val clipboardManager = LocalClipboardManager.current
 
     val focusRequester = remember { FocusRequester() }
+
+    var draggedPoint by remember { mutableStateOf<Offset>(Offset.Zero) }
+    var dragStartBytePosition by remember { mutableLongStateOf(0L) }
+    var dragEndBytePosition by remember { mutableLongStateOf(0L) }
 
     val (contentWidth, isContentWidthLatest) = debouncedStateOf(200.milliseconds(), tolerateCount = 1, filePager) {
         contentComponentWidth
@@ -99,8 +114,21 @@ fun GiantTextViewer(
         }
     }
 
+    val selection = minOf(dragStartBytePosition, dragEndBytePosition) ..<
+        maxOf(dragStartBytePosition, dragEndBytePosition)
+
     LaunchedEffect(filePager) {
         onPagerReady(filePager)
+    }
+
+    fun copySelection() {
+        if (!selection.isEmpty()) {
+            val length = (selection.endExclusive - selection.start)
+                .coerceAtMost(fileReader.blockSize.toLong()) // TODO support copying across blocks
+                .toInt()
+            val (text, _) = fileReader.readString(selection.start, length)
+            clipboardManager.setText(AnnotatedString(text = text))
+        }
     }
 
     Row(modifier
@@ -129,6 +157,8 @@ fun GiantTextViewer(
                     e.key == Key.Slash -> onSearchRequest(SearchMode.Forward)
                     e.key == Key.Escape -> onSearchRequest(SearchMode.None)
 
+                    e.key == Key.C && e.isCtrlOrCmdPressed() -> copySelection()
+
                     else -> {
 //                    return@onKeyEvent false
                         return@onPreviewKeyEvent false
@@ -139,9 +169,13 @@ fun GiantTextViewer(
             }
             false
         }
-        // not sure which Compose bug leading to require implementing "click to focus" manually
         .onPointerEvent(eventType = PointerEventType.Press) {
+            // not sure which Compose bug leading to require implementing "click to focus" manually
             focusRequester.requestFocus()
+
+            // clear selection
+            dragStartBytePosition = 0L
+            dragEndBytePosition = 0L
         }
         .focusRequester(focusRequester)
         .focusable()
@@ -154,6 +188,19 @@ fun GiantTextViewer(
                 contentComponentWidth = it.size.width
                 contentComponentHeight = it.size.height
             }
+            .onDrag(
+                onDragStart = {
+                    draggedPoint = it
+                    dragStartBytePosition = findBytePositionByCoordinatePx(filePager, it)
+                },
+                onDrag = {
+                    draggedPoint += it
+                    dragEndBytePosition = findBytePositionByCoordinatePx(filePager, draggedPoint)
+                },
+                onDragEnd = {
+                    draggedPoint = Offset.Zero
+                }
+            )
         ) {
             val textToDisplay: List<CharSequence> = filePager.textInViewport
             val bytePositionsOfDisplay: List<Long> = filePager.startBytePositionsInViewport
@@ -185,6 +232,14 @@ fun GiantTextViewer(
                         if (bytePosition in highlightByteRange) {
                             drawRect(
                                 color = Color(red = 0.85f, green = 0.6f, blue = 0f),
+                                topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
+                                size = Size(charWidth, lineHeight),
+                            )
+                        }
+
+                        if (bytePosition in selection) {
+                            drawRect(
+                                color = Color(red = 0.1f, green = 0.1f, blue = 0.6f, alpha = .6f),
                                 topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
                                 size = Size(charWidth, lineHeight),
                             )
@@ -237,4 +292,48 @@ fun GiantTextViewer(
             println("Disposed ${fileReader.filePath}")
         }
     }
+}
+
+private fun findBytePositionByCoordinatePx(filePager: GiantFileTextPager, point: Offset): Long {
+    val startBytePositions = filePager.startBytePositionsInViewport
+    val rowTexts = filePager.textInViewport
+    val charMeasurer = filePager.textLayouter.charMeasurer
+
+    if (rowTexts.isEmpty()) {
+        return filePager.viewportStartBytePosition
+    }
+
+    if (point.y <= 0) {
+        return filePager.viewportStartBytePosition
+    }
+
+    // y-axis
+    val rowFromTopLeft = floor(point.y / filePager.rowHeight()).toInt()
+    if (rowFromTopLeft > rowTexts.lastIndex) {
+        return startBytePositions.last() + rowTexts.last().string().toByteArray(Charsets.UTF_8).size
+    }
+    val startBytePosition = startBytePositions[rowFromTopLeft]
+
+    // x-axis
+    val rowText = rowTexts[rowFromTopLeft]
+    var accumulatedPx = 0f
+    var accumulatedBytes = 0L
+    rowText.forEachIndexed { i, char ->
+        val fullChar = if (char.isHighSurrogate()) {
+            return@forEachIndexed
+        } else if (char.isLowSurrogate()) {
+            rowText.subSequence(i - 1, i + 1)
+        } else {
+            char.toString()
+        }
+        val charWidth = charMeasurer.findCharWidth(fullChar)
+        if (point.x in accumulatedPx ..< accumulatedPx + charWidth) {
+            return startBytePosition + accumulatedBytes
+        }
+
+        accumulatedBytes += fullChar.string().toByteArray(Charsets.UTF_8).size
+        accumulatedPx += charWidth
+    }
+    // reached end of row
+    return startBytePosition + accumulatedBytes
 }

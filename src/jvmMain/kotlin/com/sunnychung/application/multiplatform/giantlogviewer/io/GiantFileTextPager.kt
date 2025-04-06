@@ -67,7 +67,7 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
         }
     }
 
-    private fun rowHeight(): Float {
+    fun rowHeight(): Float {
         // TODO avoid this hardcode
         return when (val charMeasurer = textLayouter.charMeasurer) {
             is ComposeUnicodeCharMeasurer -> charMeasurer.getRowHeight()
