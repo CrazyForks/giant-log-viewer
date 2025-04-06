@@ -505,6 +505,10 @@ internal data class PageState(
 }
 
 fun CharSequence.chunkedUnicode(chunkSize: Int): List<CharSequence> {
+    if (isEmpty()) {
+        return listOf("")
+    }
+
     val chunked = mutableListOf<CharSequence>()
     var start = 0
     var len = 0
