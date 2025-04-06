@@ -86,7 +86,7 @@ class GiantFileTextPagerNextRowTest {
 
                     assertListOfStringStartWith(
                         fileContent.substring(start ..< visibleEnd).split(lineSeparatorRegex)
-                            .flatMap { it.windowed(23, 23, true) },
+                            .flatMap { it.chunkedUnicode(23) },
                         pager.textInViewport,
                         "range: [$start, $visibleEnd)"
                     )
@@ -192,7 +192,7 @@ class GiantFileTextPagerNextRowTest {
 
                     assertListOfStringStartWith(
                         fileContent.substring(start ..< visibleEnd).split(lineSeparatorRegex)
-                            .flatMap { it.windowed(23, 23, true) },
+                            .flatMap { it.chunkedUnicode(23) },
                         pager.textInViewport,
                         "range: [$start, $visibleEnd)"
                     )
