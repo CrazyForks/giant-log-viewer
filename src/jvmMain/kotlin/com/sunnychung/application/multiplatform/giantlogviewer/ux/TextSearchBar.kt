@@ -87,6 +87,7 @@ fun TextSearchBar(
         )
         TextToggleButton(
             text = ".*",
+            fontFamily = LocalFont.current.monospaceFontFamily,
             isSelected = searchOptions.isRegex,
             onToggle = onToggleRegex,
             modifier = Modifier.width(SEARCH_OPTION_BUTTON_WIDTH).focusProperties { canFocus = false },
