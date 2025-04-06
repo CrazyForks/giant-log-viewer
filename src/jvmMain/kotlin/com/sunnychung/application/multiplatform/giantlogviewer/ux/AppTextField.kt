@@ -86,7 +86,7 @@ fun AppTextField(
                 textTransformation = transformation,
                 textDecorator = decorator,
                 isSingleLineInput = singleLine,
-//                contextMenu = AppBigTextFieldContextMenu,
+                contextMenu = AppBigTextFieldContextMenu,
                 onPointerEvent = onPointerEvent,
 //                interactionSource = interactionSource,
                 onFinishInit = onFinishInit,
