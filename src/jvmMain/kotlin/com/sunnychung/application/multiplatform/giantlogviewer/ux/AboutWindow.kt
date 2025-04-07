@@ -20,6 +20,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
@@ -54,12 +58,23 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
         state = WindowState(
             position = WindowPosition.Aligned(Alignment.Center),
             width = 400.dp,
-            height = 230.dp,
+            height = 200.dp,
         ),
+        onKeyEvent = { e ->
+            if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) {
+                onClose()
+                true
+            } else {
+                false
+            }
+        }
     ) {
-        setMinimumSize(width = 400.dp, 230.dp)
+        setMinimumSize(width = 400.dp, 180.dp)
 
-        Box(Modifier.fillMaxSize().background(Color.Cyan).padding(12.dp)) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize().background(Color.Cyan).padding(12.dp)
+        ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
@@ -105,8 +120,8 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
                         }
                     )
                 }
-                Spacer(Modifier.height(24.dp))
-                BasicText("", style = TextStyle(fontFamily = font))
+//                Spacer(Modifier.height(24.dp))
+//                BasicText("", style = TextStyle(fontFamily = font))
             }
         }
     }
