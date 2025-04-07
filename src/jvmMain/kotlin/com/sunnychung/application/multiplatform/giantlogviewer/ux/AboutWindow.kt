@@ -106,7 +106,7 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
                     )
                 }
                 Spacer(Modifier.height(24.dp))
-                BasicText("The app icon is created through Craiyon.", style = TextStyle(fontFamily = font))
+                BasicText("", style = TextStyle(fontFamily = font))
             }
         }
     }
