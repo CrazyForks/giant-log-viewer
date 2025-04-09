@@ -42,6 +42,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.sunnychung.application.multiplatform.giantlogviewer.helper.ComposeUnicodeCharMeasurer2
 import com.sunnychung.application.multiplatform.giantlogviewer.io.ComposeGiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
@@ -84,9 +85,10 @@ fun GiantTextViewer(
     var contentComponentHeight by remember { mutableIntStateOf(0) }
 
     val density = LocalDensity.current
-    val textMeasurer = rememberTextMeasurer()
-    val textStyle = TextStyle(fontFamily = LocalFont.current.monospaceFontFamily)
-    val charMeasurer = remember(density) { ComposeUnicodeCharMeasurer(textMeasurer, textStyle) }
+    val font = LocalFont.current
+    val textMeasurer = rememberTextMeasurer(0)
+    val textStyle = remember(font) { TextStyle(fontFamily = font.monospaceFontFamily) }
+    val charMeasurer = remember(density, textStyle) { ComposeUnicodeCharMeasurer2(textMeasurer, textStyle) }
     val textLayouter = remember(charMeasurer) { MonospaceBidirectionalTextLayouter(charMeasurer) }
 
     val fileReader = remember(filePath, refreshKey) {
@@ -205,7 +207,7 @@ fun GiantTextViewer(
             val textToDisplay: List<CharSequence> = filePager.textInViewport
             val bytePositionsOfDisplay: List<Long> = filePager.startBytePositionsInViewport
 //        println("textToDisplay:\n$textToDisplay")
-            val lineHeight = (textLayouter.charMeasurer as ComposeUnicodeCharMeasurer).getRowHeight()
+            val lineHeight = charMeasurer.getRowHeight()
             Canvas(modifier = Modifier.matchParentSize()) {
 //                with(density) {
                 textToDisplay.forEachIndexed { rowRelativeIndex, row ->
@@ -226,6 +228,7 @@ fun GiantTextViewer(
                                 append(charAnnotated)
                             }
                         }
+                        val textLayoutResult = charMeasurer.getTextLayoutResult(charAnnotated, null)
                         val charWidth = textLayouter.measureCharWidth(charAnnotated)
                         val charYOffset = textLayouter.measureCharYOffset(charAnnotated)
 
@@ -254,16 +257,23 @@ fun GiantTextViewer(
 //                                .offset((globalXOffset + accumulateXOffset).toDp(), (rowYOffset + charYOffset).toDp())
 //                        )
 
-                        drawText(
-                            textMeasurer = textMeasurer,
-                            text = charAnnotated.string(),
-                            topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
-                            size = Size(charWidth, lineHeight),
-                            style = textStyle,
-                            overflow = TextOverflow.Visible,
-                            softWrap = false,
-                            maxLines = 1,
-                        )
+                        if (textLayoutResult != null) { // use cache to avoid object allocations and interop calls
+                            drawText(
+                                textLayoutResult = textLayoutResult,
+                                topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
+                            )
+                        } else {
+                            drawText(
+                                textMeasurer = textMeasurer,
+                                text = charAnnotated.string(),
+                                topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
+                                size = Size(charWidth, lineHeight),
+                                style = textStyle,
+                                overflow = TextOverflow.Visible,
+                                softWrap = false,
+                                maxLines = 1,
+                            )
+                        }
 
                         accumulateXOffset += charWidth
                         bytePosition += charAnnotated.string().toByteArray(Charsets.UTF_8).size
