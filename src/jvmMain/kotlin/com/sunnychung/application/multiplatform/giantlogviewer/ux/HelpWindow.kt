@@ -41,6 +41,7 @@ import androidx.compose.ui.window.WindowState
 import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.appicon
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.setMinimumSize
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.lib.android.composabletable.ux.Table
 import org.jetbrains.compose.resources.painterResource
@@ -68,7 +69,9 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
     ) {
         setMinimumSize(width = 600.dp, 250.dp)
 
-        Row(Modifier.background(Color.Cyan)) {
+        val colors = LocalColor.current
+
+        Row(Modifier.background(colors.dialogBackground)) {
             KeyBindingTable(
                 title = buildAnnotatedString {
                     append("The ")
@@ -113,7 +116,8 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
 
 @Composable
 private fun KeyBindingTable(modifier: Modifier = Modifier, title: AnnotatedString, keyBindings: List<KeyBinding>) {
-    val primaryColor = Color(red = 0f, green = 0f, blue = 0.19f)
+    val colors = LocalColor.current
+    val primaryColor = LocalColor.current.dialogPrimary
     val density = LocalDensity.current
 
     var componentWidth by remember { mutableIntStateOf(0) }
@@ -130,7 +134,7 @@ private fun KeyBindingTable(modifier: Modifier = Modifier, title: AnnotatedStrin
         val titleHorizontalPadding = 12.dp.toPx()
 
         Column(modifier
-            .background(Color.Cyan)
+            .background(colors.dialogBackground)
             .onGloballyPositioned {
                 componentWidth = it.size.width
                 componentHeight = it.size.height

@@ -40,12 +40,14 @@ import com.sunnychung.application.giantlogviewer.generated.resources.copy
 import com.sunnychung.application.giantlogviewer.generated.resources.world_wide_web
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.setMinimumSize
 import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContext
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
     val font = LocalFont.current.normalFontFamily
+    val colors = LocalColor.current
     val clipboardManager = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
     val buildInfo = AppContext.instance.MetadataManager
@@ -73,14 +75,14 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
 
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize().background(Color.Cyan).padding(12.dp)
+            modifier = Modifier.fillMaxSize().background(colors.dialogBackground).padding(12.dp)
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
             ) {
                 Image(
-                    painterResource(Res.drawable.appicon),
+                    painter = painterResource(resource = Res.drawable.appicon),
                     contentDescription = null,
                     modifier = Modifier.size(64.dp),
                 )
@@ -90,6 +92,7 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
                         fontSize = 16.sp,
                         fontFamily = font,
                         fontWeight = FontWeight.Medium,
+                        color = colors.aboutDialogText,
                     )
                 )
                 BasicText(
@@ -97,6 +100,7 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
                     style = TextStyle(
                         fontSize = 12.sp,
                         fontFamily = font,
+                        color = colors.aboutDialogText,
                     )
                 )
                 Spacer(Modifier.height(10.dp))
@@ -106,7 +110,7 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
                     AppImage(
                         resource = Res.drawable.copy,
                         size = 16.dp,
-                        color = Color.Black,
+                        color = colors.aboutDialogButton,
                         modifier = Modifier.clickable {
                             clipboardManager.setText(AnnotatedString(repoUrl))
                         }
@@ -114,7 +118,7 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
                     AppImage(
                         resource = Res.drawable.world_wide_web,
                         size = 16.dp,
-                        color = Color.Black,
+                        color = colors.aboutDialogButton,
                         modifier = Modifier.clickable {
                             uriHandler.openUri(repoUrl)
                         }

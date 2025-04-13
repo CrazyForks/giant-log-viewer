@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.lib.multiplatform.bigtext.extension.runIf
 
@@ -24,17 +25,25 @@ fun TextToggleButton(
     isEnabled: Boolean = true,
     onToggle: (Boolean) -> Unit,
 ) {
-//    val colours = LocalColor.current
+    val colors = LocalColor.current
     BasicText(
         text = text,
         style = TextStyle(
             fontFamily = fontFamily,
-            color = if (isEnabled) Color.White else Color(.6f, .6f, .6f),
+            color = if (isEnabled) {
+                if (isSelected) {
+                    colors.toggleButtonOnText
+                } else {
+                    colors.toggleButtonOffText
+                }
+            } else {
+                colors.toggleButtonDisabledText
+            },
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
         ),
         modifier = modifier
-            .background(if (isSelected && isEnabled) Color(.2f, .2f, .7f) else Color(0f, 0f, .3f))
+            .background(if (isSelected && isEnabled) colors.toggleButtonOnBackground else colors.toggleButtonOffBackground)
             .runIf(isEnabled) {
                 clickable { onToggle(!isSelected) }
             }

@@ -19,10 +19,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 
 @Composable
 fun VerticalIndicatorView(modifier: Modifier = Modifier, value: Float) {
+    val colors = LocalColor.current
     var componentWidth by remember { mutableIntStateOf(0) }
     var componentHeight by remember { mutableIntStateOf(0) }
 
@@ -32,12 +34,12 @@ fun VerticalIndicatorView(modifier: Modifier = Modifier, value: Float) {
     }) {
         Canvas(modifier = Modifier.matchParentSize()) {
             drawRect(
-                color = Color(red = 0.3f, green = 0.3f, blue = 0.3f),
+                color = colors.readPositionBarNegativeBackground,
                 topLeft = Offset.Zero,
                 size = Size(componentWidth.toFloat(), componentHeight.toFloat()),
             )
             drawRect(
-                color = Color(red = 0.85f, green = 0.6f, blue = 0f),
+                color = colors.readPositionBarPositiveBackground,
                 topLeft = Offset.Zero,
                 size = Size(componentWidth.toFloat(), componentHeight * value),
             )
@@ -48,7 +50,7 @@ fun VerticalIndicatorView(modifier: Modifier = Modifier, value: Float) {
             softWrap = false,
             style = TextStyle(
                 fontSize = 12.sp,
-                color = Color.White,
+                color = colors.readPositionBarText,
                 fontFamily = LocalFont.current.normalFontFamily,
                 textAlign = TextAlign.Center,
             ),
