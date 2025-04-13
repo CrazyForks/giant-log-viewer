@@ -147,7 +147,7 @@ private fun KeyBindingTable(modifier: Modifier = Modifier, title: AnnotatedStrin
                     size = Size(componentWidth - 30.dp.toPx(), componentHeight - 30.dp.toPx()),
                 )
                 drawRect(
-                    color = Color.Cyan,
+                    color = colors.dialogBackground,
                     topLeft = Offset(
                         x = (componentWidth - titleSize.width) / 2f - titleHorizontalPadding,
                         y = 0f,

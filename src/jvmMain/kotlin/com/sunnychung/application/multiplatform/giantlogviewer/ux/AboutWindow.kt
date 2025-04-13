@@ -106,7 +106,7 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     val repoUrl = "https://github.com/sunny-chung/giant-log-viewer"
-                    BasicText(repoUrl, style = TextStyle(fontFamily = font))
+                    BasicText(repoUrl, style = TextStyle(fontFamily = font, color = colors.aboutDialogText))
                     AppImage(
                         resource = Res.drawable.copy,
                         size = 16.dp,
