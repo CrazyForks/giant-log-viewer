@@ -1,5 +1,6 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.io
 
+import com.sunnychung.application.multiplatform.giantlogviewer.helper.ComposeUnicodeCharMeasurer2
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.BidirectionalTextLayouter
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.runIf
@@ -71,6 +72,7 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
         // TODO avoid this hardcode
         return when (val charMeasurer = textLayouter.charMeasurer) {
             is ComposeUnicodeCharMeasurer -> charMeasurer.getRowHeight()
+            is ComposeUnicodeCharMeasurer2 -> charMeasurer.getRowHeight()
             else -> 12f
         }
     }
