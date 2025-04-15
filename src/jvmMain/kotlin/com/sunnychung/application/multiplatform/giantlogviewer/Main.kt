@@ -10,11 +10,15 @@ import com.sunnychung.application.multiplatform.giantlogviewer.extension.setMini
 import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContext
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.App
 import kotlinx.coroutines.runBlocking
+import net.harawata.appdirs.AppDirsFactory
 import org.jetbrains.compose.resources.painterResource
+import java.io.File
 
 fun main(args: Array<String>) {
     System.setProperty("apple.awt.application.appearance", "system")
 
+    val appDir = AppDirsFactory.getInstance().getUserDataDir("Giant Log Viewer", null, null)
+    AppContext.instance.dataDir = File(appDir)
     runBlocking {
         AppContext.instance.ResourceManager.loadAllResources()
     }

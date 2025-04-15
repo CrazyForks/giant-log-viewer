@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,7 +23,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -37,7 +37,13 @@ import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.help
 import com.sunnychung.application.giantlogviewer.generated.resources.info
 import com.sunnychung.application.multiplatform.giantlogviewer.document.lightColorTheme
+import com.sunnychung.application.giantlogviewer.generated.resources.setting
+import com.sunnychung.application.multiplatform.giantlogviewer.document.ThemeDI
+import com.sunnychung.application.multiplatform.giantlogviewer.document.darkColorTheme
+import com.sunnychung.application.multiplatform.giantlogviewer.document.toColorTheme
+import com.sunnychung.application.multiplatform.giantlogviewer.extension.subscribeStateToEntity
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
+import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContext
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptions
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
@@ -51,8 +57,15 @@ fun App() {
     var selectedFileName by remember { mutableStateOf("") }
     var isShowHelpWindow by remember { mutableStateOf(false) }
     var isShowAboutWindow by remember { mutableStateOf(false) }
+    var isShowSettingWindow by remember { mutableStateOf(false) }
 
-    CompositionLocalProvider(LocalColor provides lightColorTheme()) {
+    val themePreference = AppContext.instance.ThemePreferenceRepository
+        .subscribeStateToEntity(ThemeDI)
+        .themes
+
+    print("App recompose - $themePreference")
+
+    CompositionLocalProvider(LocalColor provides themePreference.toColorTheme()) {
         val colors = LocalColor.current
         Column(Modifier.fillMaxSize()) {
             Row(
@@ -90,12 +103,22 @@ fun App() {
                             isShowHelpWindow = true
                         }
                 )
+                AppImage(
+                    resource = Res.drawable.setting,
+                    size = 20.dp,
+                    color = colors.menuBarIconColor,
+                    modifier = Modifier.padding(5.dp)
+                        .clickable {
+                            isShowSettingWindow = true
+                        }
+                )
             }
 
             AppMainContent(onSelectFile = { selectedFileName = it?.name ?: "" })
 
             HelpWindow(isVisible = isShowHelpWindow, onClose = { isShowHelpWindow = false })
             AboutWindow(isVisible = isShowAboutWindow, onClose = { isShowAboutWindow = false })
+            SettingWindow(isVisible = isShowSettingWindow, onClose = { isShowSettingWindow = false })
         }
     }
 }

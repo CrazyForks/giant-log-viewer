@@ -2,6 +2,7 @@ package com.sunnychung.application.multiplatform.giantlogviewer.ux
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -23,6 +24,7 @@ fun TextToggleButton(
     fontFamily: FontFamily = LocalFont.current.normalFontFamily,
     isSelected: Boolean,
     isEnabled: Boolean = true,
+    innerPadding: PaddingValues = PaddingValues(horizontal = 2.dp, vertical = 4.dp),
     onToggle: (Boolean) -> Unit,
 ) {
     val colors = LocalColor.current
@@ -47,6 +49,6 @@ fun TextToggleButton(
             .runIf(isEnabled) {
                 clickable { onToggle(!isSelected) }
             }
-            .padding(horizontal = 2.dp, vertical = 4.dp)
+            .padding(innerPadding)
     )
 }

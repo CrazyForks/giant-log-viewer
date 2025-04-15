@@ -1,5 +1,7 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.document
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 data class ColorTheme(
@@ -113,4 +115,13 @@ fun darkColorTheme(): ColorTheme {
         dialogBackground = primaryBackground,
         dialogPrimary = Color(0.486f, 0.780f, 1.000f),
     )
+}
+
+@Composable
+fun ThemePreference.toColorTheme(): ColorTheme {
+    return when (selectedThemeType) {
+        ThemeType.Light -> lightColorTheme()
+        ThemeType.Dark -> darkColorTheme()
+        null -> if (isSystemInDarkTheme()) darkColorTheme() else lightColorTheme()
+    }
 }
