@@ -19,22 +19,24 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.move_to
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 
 @Composable
 fun EmptyFileView(modifier: Modifier = Modifier) {
+    val colors = LocalColor.current
     Box(modifier.fillMaxSize().padding(32.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.align(Alignment.Center)) {
             AppImage(
                 resource = Res.drawable.move_to,
                 size = 96.dp,
-                color = Color.Gray,
+                color = colors.bigTextHint,
             )
             Spacer(Modifier.height(32.dp))
             BasicText(
                 text = "Drop a UTF-8 or ASCII text file here\nto get started",
                 style = TextStyle(
-                    color = Color.Gray,
+                    color = colors.bigTextHint,
                     fontSize = 24.sp,
                     textAlign = TextAlign.Center,
                     lineHeight = 1.5.em,

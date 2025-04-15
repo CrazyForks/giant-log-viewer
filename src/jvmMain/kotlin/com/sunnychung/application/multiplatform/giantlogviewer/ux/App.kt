@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,7 +23,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -35,9 +36,17 @@ import androidx.compose.ui.unit.dp
 import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.help
 import com.sunnychung.application.giantlogviewer.generated.resources.info
+import com.sunnychung.application.multiplatform.giantlogviewer.document.lightColorTheme
+import com.sunnychung.application.giantlogviewer.generated.resources.setting
+import com.sunnychung.application.multiplatform.giantlogviewer.document.ThemeDI
+import com.sunnychung.application.multiplatform.giantlogviewer.document.darkColorTheme
+import com.sunnychung.application.multiplatform.giantlogviewer.document.toColorTheme
+import com.sunnychung.application.multiplatform.giantlogviewer.extension.subscribeStateToEntity
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
+import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContext
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptions
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import java.io.File
 import java.net.URI
@@ -48,54 +57,77 @@ fun App() {
     var selectedFileName by remember { mutableStateOf("") }
     var isShowHelpWindow by remember { mutableStateOf(false) }
     var isShowAboutWindow by remember { mutableStateOf(false) }
+    var isShowSettingWindow by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(30.dp).background(Color(red = 0.4f, green = 0.4f, blue = 0.4f)),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AppImage(
-                resource = Res.drawable.info,
-                size = 20.dp,
-                color = Color.White,
-                modifier = Modifier.padding(5.dp)
-                    .clickable {
-                        isShowAboutWindow = true
-                    }
-            )
-            BasicText(
-                text = selectedFileName,
-                style = TextStyle(
-                    color = Color.White,
-                    fontFamily = LocalFont.current.normalFontFamily,
-                    textAlign = TextAlign.Center,
-                ),
-                softWrap = false,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
-            )
-            AppImage(
-                resource = Res.drawable.help,
-                size = 20.dp,
-                color = Color.White,
-                modifier = Modifier.padding(5.dp)
-                    .clickable {
-                        isShowHelpWindow = true
-                    }
-            )
+    val themePreference = AppContext.instance.ThemePreferenceRepository
+        .subscribeStateToEntity(ThemeDI)
+        .themes
+
+    print("App recompose - $themePreference")
+
+    CompositionLocalProvider(LocalColor provides themePreference.toColorTheme()) {
+        val colors = LocalColor.current
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(30.dp)
+                    .background(colors.menuBarBackground),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AppImage(
+                    resource = Res.drawable.info,
+                    size = 20.dp,
+                    color = colors.menuBarIconColor,
+                    modifier = Modifier.padding(5.dp)
+                        .clickable {
+                            isShowAboutWindow = true
+                        }
+                )
+                BasicText(
+                    text = selectedFileName,
+                    style = TextStyle(
+                        color = colors.menuBarTextColor,
+                        fontFamily = LocalFont.current.normalFontFamily,
+                        textAlign = TextAlign.Center,
+                    ),
+                    softWrap = false,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                )
+                AppImage(
+                    resource = Res.drawable.help,
+                    size = 20.dp,
+                    color = colors.menuBarIconColor,
+                    modifier = Modifier.padding(5.dp)
+                        .clickable {
+                            isShowHelpWindow = true
+                        }
+                )
+                AppImage(
+                    resource = Res.drawable.setting,
+                    size = 20.dp,
+                    color = colors.menuBarIconColor,
+                    modifier = Modifier.padding(5.dp)
+                        .clickable {
+                            isShowSettingWindow = true
+                        }
+                )
+            }
+
+            AppMainContent(onSelectFile = { selectedFileName = it?.name ?: "" })
+
+            HelpWindow(isVisible = isShowHelpWindow, onClose = { isShowHelpWindow = false })
+            AboutWindow(isVisible = isShowAboutWindow, onClose = { isShowAboutWindow = false })
+            SettingWindow(isVisible = isShowSettingWindow, onClose = { isShowSettingWindow = false })
         }
-
-        AppMainContent(onSelectFile = { selectedFileName = it?.name ?: "" })
-
-        HelpWindow(isVisible = isShowHelpWindow, onClose = { isShowHelpWindow = false })
-        AboutWindow(isVisible = isShowAboutWindow, onClose = { isShowAboutWindow = false })
     }
 }
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
 private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) -> Unit) {
+    val colors = LocalColor.current
+
     var selectedFilePath by remember { mutableStateOf("") }
 
     val viewerFocusRequester = remember { FocusRequester() }
@@ -153,7 +185,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                         }
                     }
                 )
-                .background(Color.Cyan)
+                .background(colors.fileBodyTheme.background)
         ) {
             if (selectedFilePath.isEmpty()) {
                 EmptyFileView()
@@ -254,7 +286,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(.45f, .45f, .45f))
+                    .background(colors.background)
                     .padding(2.dp)
                     .onKeyEvent { e ->
 //                        println("search onKeyEvent ${e.key}")

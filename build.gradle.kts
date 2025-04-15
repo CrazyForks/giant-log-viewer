@@ -7,6 +7,7 @@ plugins {
     id("org.jetbrains.compose") version "1.6.11"
 //    kotlin("jvm") version "2.0.20"
     kotlin("plugin.compose") version "2.0.20"
+    kotlin("plugin.serialization") version "2.0.20"
 }
 
 group = "com.sunnychung.application"
@@ -40,6 +41,10 @@ kotlin {
 
                 // no longer in use
                 // implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.1")
+
+                // for persisting chosen color theme
+                implementation("net.harawata:appdirs:1.4.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.7.3")
             }
 
             // for build info properties

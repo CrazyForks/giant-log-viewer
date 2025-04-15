@@ -19,22 +19,24 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.error_cross
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 
 @Composable
 fun ErrorView(modifier: Modifier = Modifier, message: String) {
+    val colors = LocalColor.current
     Box(modifier.fillMaxSize().padding(32.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.align(Alignment.Center)) {
             AppImage(
                 resource = Res.drawable.error_cross,
                 size = 96.dp,
-                color = Color(red = 0.7f, green = 0.4f, blue = 0.4f),
+                color = colors.bigTextWarning,
             )
             Spacer(Modifier.height(32.dp))
             BasicText(
                 text = message,
                 style = TextStyle(
-                    color = Color(red = 0.7f, green = 0.4f, blue = 0.4f),
+                    color = colors.bigTextWarning,
                     fontSize = 24.sp,
                     textAlign = TextAlign.Center,
                     lineHeight = 1.5.em,

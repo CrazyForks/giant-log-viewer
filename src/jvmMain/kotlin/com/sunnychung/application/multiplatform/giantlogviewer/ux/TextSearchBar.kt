@@ -21,6 +21,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptions
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 
 private val SEARCH_OPTION_BUTTON_WIDTH = 24.dp
@@ -40,6 +41,8 @@ fun TextSearchBar(
     onClickPrev: () -> Unit,
     onClickNext: () -> Unit,
 ) {
+    val colors = LocalColor.current
+
     val focusRequester = remember(key) { FocusRequester() }
 
     Row(
@@ -68,7 +71,7 @@ fun TextSearchBar(
                 BasicText(
                     text = "Text/Pattern to Search for",
                     style = TextStyle(
-                        color = Color.Gray,
+                        color = colors.textFieldPlaceholder,
                         fontFamily = LocalFont.current.normalFontFamily,
                     )
                 )

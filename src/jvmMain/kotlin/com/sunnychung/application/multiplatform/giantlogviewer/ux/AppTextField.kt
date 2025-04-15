@@ -17,6 +17,7 @@ import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.lib.multiplatform.bigtext.annotation.ExperimentalBigTextUiApi
 import com.sunnychung.lib.multiplatform.bigtext.core.BigText
 import com.sunnychung.lib.multiplatform.bigtext.core.BigTextDecorator
@@ -42,10 +43,10 @@ fun AppTextField(
     singleLine: Boolean = false,
 //    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     colors: TextFieldColors = TextFieldDefaults.textFieldColors(
-        textColor = Color.Black,
-        placeholderColor = Color.Gray,
-        cursorColor = Color.Black,
-        backgroundColor = Color.White,
+        textColor = LocalColor.current.textFieldContent,
+        placeholderColor = LocalColor.current.textFieldPlaceholder,
+        cursorColor = LocalColor.current.textFieldCursor,
+        backgroundColor = LocalColor.current.textFieldBackground,
     ),
     contentPadding: PaddingValues = PaddingValues(6.dp),
 //    hasIndicatorLine: Boolean = false,
@@ -116,7 +117,7 @@ fun AppTextField(
     enabled: Boolean = true,
     readOnly: Boolean = false,
     textStyle: TextStyle = LocalTextStyle.current,
-    backgroundColor: Color = Color.White,
+    backgroundColor: Color = LocalColor.current.textFieldBackground,
     placeholder: @Composable (() -> Unit)? = null,
     leadingIcon: @Composable (() -> Unit)? = null,
     transformation: IncrementalTextTransformation<*>? = null,
@@ -124,9 +125,9 @@ fun AppTextField(
     singleLine: Boolean = false,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     colors: TextFieldColors = TextFieldDefaults.textFieldColors(
-        textColor = Color.Black,
-        placeholderColor = Color.Gray,
-        cursorColor = Color.Black,
+        textColor = LocalColor.current.textFieldContent,
+        placeholderColor = LocalColor.current.textFieldPlaceholder,
+        cursorColor = LocalColor.current.textFieldCursor,
         backgroundColor = backgroundColor,
     ),
     contentPadding: PaddingValues = PaddingValues(6.dp),

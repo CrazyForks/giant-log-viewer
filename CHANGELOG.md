@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Dark color theme
+- Persistence -- to save your preference if you have changed any setting
+
 ### Fixed
 - Cursor selection was incorrect
 

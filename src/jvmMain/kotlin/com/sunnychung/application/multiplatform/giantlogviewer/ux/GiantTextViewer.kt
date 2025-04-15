@@ -49,6 +49,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextP
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
@@ -86,8 +87,14 @@ fun GiantTextViewer(
 
     val density = LocalDensity.current
     val font = LocalFont.current
+    val colors = LocalColor.current
     val textMeasurer = rememberTextMeasurer(0)
-    val textStyle = remember(font) { TextStyle(fontFamily = font.monospaceFontFamily) }
+    val textStyle = remember(font, colors) {
+        TextStyle(
+            fontFamily = font.monospaceFontFamily,
+            color = colors.fileBodyTheme.plainText,
+        )
+    }
     val charMeasurer = remember(density, textStyle) { ComposeUnicodeCharMeasurer2(textMeasurer, textStyle) }
     val textLayouter = remember(charMeasurer) { MonospaceBidirectionalTextLayouter(charMeasurer) }
 
@@ -234,7 +241,7 @@ fun GiantTextViewer(
 
                         if (bytePosition in highlightByteRange) {
                             drawRect(
-                                color = Color(red = 0.85f, green = 0.6f, blue = 0f),
+                                color = colors.fileBodyTheme.searchMatchBackground,
                                 topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
                                 size = Size(charWidth, lineHeight),
                             )
@@ -242,7 +249,7 @@ fun GiantTextViewer(
 
                         if (bytePosition in selection) {
                             drawRect(
-                                color = Color(red = 0.1f, green = 0.1f, blue = 0.6f, alpha = .6f),
+                                color = colors.fileBodyTheme.selectionBackground,
                                 topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
                                 size = Size(charWidth, lineHeight),
                             )
