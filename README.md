@@ -31,3 +31,15 @@ Builds are built by GitHub runners which take the source code published here dir
 ## Contributions
 
 Welcome! Note that this project is [slightly reluctant to use third-party libraries](build.gradle.kts).
+
+## How to Build
+
+1. Checkout the source code on the target OS with Java 21 and Git installed
+2. Open a terminal with the repository root as the working directory
+3. Run in terminal:
+
+> [Windows] `gradlew clean packageReleaseDistributionForCurrentOS`
+> 
+> [macOS / Linux] `./gradlew clean packageReleaseDistributionForCurrentOS`
+
+The build will be available under the directory `$projectDir/build/compose/binaries/main-release/`.
