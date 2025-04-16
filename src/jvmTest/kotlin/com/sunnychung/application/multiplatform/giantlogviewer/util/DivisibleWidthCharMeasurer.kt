@@ -1,8 +1,12 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.util
 
+import com.sunnychung.lib.multiplatform.bigtext.annotation.TemporaryBigTextApi
 import com.sunnychung.lib.multiplatform.bigtext.core.layout.CharMeasurer
 
 class DivisibleWidthCharMeasurer(private val charWidth: Float) : CharMeasurer<Unit> {
+    @TemporaryBigTextApi
+    override fun getRowHeight(): Float = 12f
+
     override fun measureFullText(text: CharSequence) {
         // Nothing
     }
