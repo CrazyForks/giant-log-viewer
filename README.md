@@ -38,8 +38,8 @@ Welcome! Note that this project is [slightly reluctant to use third-party librar
 2. Open a terminal with the repository root as the working directory
 3. Run in terminal:
 
-> [Windows] `gradlew clean packageReleaseDistributionForCurrentOS`
+> [Windows] `gradlew clean createReleaseDistributable`
 > 
-> [macOS / Linux] `./gradlew clean packageReleaseDistributionForCurrentOS`
+> [macOS / Linux] `./gradlew clean createReleaseDistributable packageReleaseDistributionForCurrentOS`
 
 The build will be available under the directory `$projectDir/build/compose/binaries/main-release/`.
