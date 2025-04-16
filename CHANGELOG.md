@@ -1,10 +1,15 @@
-# Hello HTTP Changelog
+# Giant Log Viewer Changelog
 
 All notable changes to the Giant Log Viewer software will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+Nothing yet.
+
+
+## [1.1.0] -- 2025-04-16
 
 ### Added
 - Dark color theme
