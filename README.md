@@ -5,6 +5,7 @@ Needing to check a 4.9 GB log file on a platform where the `less` file pager is 
 This software loads instantly with same low memory footprint regardless of a 4 MB, 4 GB or 4 TB text file is opened, as long as it doesn't hit any [limitation](#limitations). The JVM is limited to use at most 80 MB heap memory (plus overheads) currently.
 
 ![Screenshot](doc/media/screenshot-viewer.png)
+![Screenshot](doc/media/screenshot-viewer-dark.png)
 
 ## Limitations
 - Supports UTF-8 encoding and ASCII text files only
