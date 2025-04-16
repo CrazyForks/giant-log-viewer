@@ -42,7 +42,6 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.sunnychung.application.multiplatform.giantlogviewer.helper.ComposeUnicodeCharMeasurer2
 import com.sunnychung.application.multiplatform.giantlogviewer.io.ComposeGiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
@@ -51,6 +50,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceB
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
+import com.sunnychung.lib.multiplatform.bigtext.annotation.TemporaryBigTextApi
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
 import com.sunnychung.lib.multiplatform.bigtext.util.annotatedString
@@ -63,7 +63,7 @@ import java.io.File
 import kotlin.math.floor
 
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
-@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, TemporaryBigTextApi::class)
 @Composable
 fun GiantTextViewer(
     modifier: Modifier,
@@ -95,7 +95,7 @@ fun GiantTextViewer(
             color = colors.fileBodyTheme.plainText,
         )
     }
-    val charMeasurer = remember(density, textStyle) { ComposeUnicodeCharMeasurer2(textMeasurer, textStyle) }
+    val charMeasurer = remember(density, textStyle) { ComposeUnicodeCharMeasurer(textMeasurer, textStyle) }
     val textLayouter = remember(charMeasurer) { MonospaceBidirectionalTextLayouter(charMeasurer) }
 
     val fileReader = remember(filePath, refreshKey) {
@@ -318,7 +318,7 @@ fun GiantTextViewer(
 private fun findBytePositionByCoordinatePx(filePager: GiantFileTextPager, point: Offset): Long {
     val startBytePositions = filePager.startBytePositionsInViewport
     val rowTexts = filePager.textInViewport
-    val charMeasurer = filePager.textLayouter.charMeasurer
+//    val charMeasurer = filePager.textLayouter.charMeasurer
 
     if (rowTexts.isEmpty()) {
         return filePager.viewportStartBytePosition
@@ -347,7 +347,7 @@ private fun findBytePositionByCoordinatePx(filePager: GiantFileTextPager, point:
         } else {
             char.toString()
         }
-        val charWidth = charMeasurer.findCharWidth(fullChar)
+        val charWidth = filePager.textLayouter.measureCharWidth(fullChar)
         if (point.x in accumulatedPx ..< accumulatedPx + charWidth) {
             return startBytePosition + accumulatedBytes
         }

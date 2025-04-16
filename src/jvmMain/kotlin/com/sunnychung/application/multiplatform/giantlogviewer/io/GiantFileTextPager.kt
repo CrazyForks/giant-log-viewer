@@ -1,7 +1,7 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.io
 
-import com.sunnychung.application.multiplatform.giantlogviewer.helper.ComposeUnicodeCharMeasurer2
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.BidirectionalTextLayouter
+import com.sunnychung.lib.multiplatform.bigtext.annotation.TemporaryBigTextApi
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.runIf
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -68,18 +68,19 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
         }
     }
 
+    @OptIn(TemporaryBigTextApi::class)
     fun rowHeight(): Float {
         // TODO avoid this hardcode
         return when (val charMeasurer = textLayouter.charMeasurer) {
             is ComposeUnicodeCharMeasurer -> charMeasurer.getRowHeight()
-            is ComposeUnicodeCharMeasurer2 -> charMeasurer.getRowHeight()
+//            is ComposeUnicodeCharMeasurer2 -> charMeasurer.getRowHeight()
             else -> 12f
         }
     }
 
     private fun maxNumOfCharInARow(): Int {
-        val charMeasurer = textLayouter.charMeasurer
-        return ceil(viewport.width / charMeasurer.findCharWidth("I")).roundToInt()
+//        val charMeasurer = textLayouter.charMeasurer
+        return ceil(viewport.width / textLayouter.measureCharWidth("I")).roundToInt()
     }
 
     private fun rebuildCacheIfInvalid() {

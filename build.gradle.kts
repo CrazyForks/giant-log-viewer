@@ -16,16 +16,8 @@ version = "1.1.0-SNAPSHOT"
 repositories {
     mavenCentral()
     google()
+//    mavenLocal()
 }
-
-//dependencies {
-////    testImplementation(kotlin("test"))
-//
-//}
-//
-//tasks.test {
-//    useJUnitPlatform()
-//}
 
 kotlin {
     jvmToolchain(21)
@@ -35,7 +27,7 @@ kotlin {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(compose.components.resources)
-                implementation("io.github.sunny-chung:bigtext-ui-composable:2.1.0")
+                implementation("io.github.sunny-chung:bigtext-ui-composable:2.2.0")
                 implementation("io.github.sunny-chung:kdatetime-multiplatform:1.1.0")
                 implementation("io.github.sunny-chung:composable-table:1.3.1")
 
