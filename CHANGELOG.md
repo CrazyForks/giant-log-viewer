@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Nothing yet.
 
 
+## [1.1.1] -- 2025-04-18
+
+### Fixed
+- Crash at startup on Windows (#1)
+- Width of the About window was not long enough for low screen density PCs
+- Title text color of the Help window did not change according to color theme
+
+
 ## [1.1.0] -- 2025-04-16
 
 ### Added
