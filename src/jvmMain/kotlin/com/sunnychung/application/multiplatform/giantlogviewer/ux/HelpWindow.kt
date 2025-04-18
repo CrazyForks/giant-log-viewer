@@ -117,14 +117,14 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
 @Composable
 private fun KeyBindingTable(modifier: Modifier = Modifier, title: AnnotatedString, keyBindings: List<KeyBinding>) {
     val colors = LocalColor.current
-    val primaryColor = LocalColor.current.dialogPrimary
+    val primaryColor = colors.dialogPrimary
     val density = LocalDensity.current
 
     var componentWidth by remember { mutableIntStateOf(0) }
     var componentHeight by remember { mutableIntStateOf(0) }
 
     with (density) {
-        val textMeasurer = rememberTextMeasurer()
+        val textMeasurer = rememberTextMeasurer(0) // TextMeasurer has a bug that its cache did not respect text color
         val titleTextStyle = TextStyle(
             fontSize = 16.sp,
             color = primaryColor,
@@ -140,6 +140,8 @@ private fun KeyBindingTable(modifier: Modifier = Modifier, title: AnnotatedStrin
                 componentHeight = it.size.height
             }
             .drawBehind {
+//                println("color p = $primaryColor, pp = ${colors.dialogPrimary} b = ${colors.dialogBackground}, s = $titleTextStyle")
+                val primaryColor = colors.dialogPrimary
                 drawRect(
                     color = primaryColor,
                     style = Stroke(),
