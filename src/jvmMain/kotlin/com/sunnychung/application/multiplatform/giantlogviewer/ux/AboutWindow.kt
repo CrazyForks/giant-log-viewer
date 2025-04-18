@@ -59,7 +59,7 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
         icon = painterResource(Res.drawable.appicon),
         state = WindowState(
             position = WindowPosition.Aligned(Alignment.Center),
-            width = 400.dp,
+            width = 420.dp,
             height = 200.dp,
         ),
         onKeyEvent = { e ->
