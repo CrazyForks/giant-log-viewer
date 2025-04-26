@@ -290,6 +290,14 @@ fun GiantTextViewer(
             }
         }
 
+        var dragY by remember { mutableStateOf(0f) }
+
+        fun moveToPositionByDragY(dragY: Float) {
+            val confinedDragY = dragY.coerceIn(0f .. contentComponentHeight.toFloat())
+            val desiredPosition = (file.length() * (confinedDragY.toDouble() / contentComponentHeight.toDouble())).toLong()
+            filePager.moveToRowOfBytePosition(desiredPosition)
+        }
+
         VerticalIndicatorView(
             value = if (fileReader.lengthInBytes() > 0) {
                 (filePager.viewportStartBytePosition.toDouble() / fileReader.lengthInBytes().toDouble()).toFloat()
@@ -297,6 +305,14 @@ fun GiantTextViewer(
                 1f
             },
             modifier = Modifier.width(20.dp).fillMaxHeight()
+                .onPointerEvent(eventType = PointerEventType.Press) {
+                    dragY = it.changes.first().position.y
+                    moveToPositionByDragY(dragY)
+                }
+                .onDrag {
+                    dragY += it.y
+                    moveToPositionByDragY(dragY)
+                }
         )
 
         println("prepare rendering in ${KInstant.now() - startTime}")
