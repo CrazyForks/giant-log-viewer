@@ -11,6 +11,8 @@ Nothing yet.
 
 ## [1.1.1] -- 2025-04-18
 
+_Changes since 1.1.0_
+
 ### Fixed
 - Crash at startup on Windows (#1)
 - Width of the About window was not long enough for low screen density PCs
