@@ -3,7 +3,10 @@ package com.sunnychung.application.multiplatform.giantlogviewer.ux
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.onDrag
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -23,7 +26,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
@@ -53,13 +55,12 @@ import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFon
 import com.sunnychung.lib.multiplatform.bigtext.annotation.TemporaryBigTextApi
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
-import com.sunnychung.lib.multiplatform.bigtext.util.annotatedString
-import com.sunnychung.lib.multiplatform.bigtext.util.buildAnnotatedStringPatched
 import com.sunnychung.lib.multiplatform.bigtext.util.debouncedStateOf
 import com.sunnychung.lib.multiplatform.bigtext.util.string
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import com.sunnychung.lib.multiplatform.kdatetime.extension.milliseconds
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.floor
 
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
@@ -104,6 +105,7 @@ fun GiantTextViewer(
     val filePager: GiantFileTextPager = remember(fileReader, textLayouter) {
         ComposeGiantFileTextPager(fileReader, textLayouter)
     }
+    val fileLength = file.length()
 
     val clipboardManager = LocalClipboardManager.current
 
@@ -125,6 +127,31 @@ fun GiantTextViewer(
 
     val selection = minOf(dragStartBytePosition, dragEndBytePosition) ..<
         maxOf(dragStartBytePosition, dragEndBytePosition)
+
+    var scrollY by remember(filePager.viewportStartBytePosition) {
+        mutableStateOf(0f)
+    }
+    val scrollState = rememberScrollableState { delta ->
+        val reversedDelta = -delta
+        if (reversedDelta < 0 && filePager.viewportStartBytePosition <= 0) {
+            return@rememberScrollableState 0f
+        }
+        if (reversedDelta > 0 && filePager.viewportStartBytePosition >= fileLength) {
+            return@rememberScrollableState 0f
+        }
+        scrollY += reversedDelta
+        val rowHeight = charMeasurer.getRowHeight()
+        while (scrollY >= rowHeight) { // TODO optimize to remove this loop
+            scrollY -= rowHeight
+            filePager.moveToNextRow()
+        }
+        if (scrollY <= -rowHeight) {
+            val numOfRowsToScroll = (abs(scrollY) / rowHeight).toInt()
+            scrollY += rowHeight * numOfRowsToScroll
+            filePager.moveToPrevRow(numOfRowsToScroll)
+        }
+        delta
+    }
 
     LaunchedEffect(filePager) {
         onPagerReady(filePager)
@@ -210,6 +237,7 @@ fun GiantTextViewer(
                     draggedPoint = Offset.Zero
                 }
             )
+            .scrollable(scrollState, Orientation.Vertical)
         ) {
             val textToDisplay: List<CharSequence> = filePager.textInViewport
             val bytePositionsOfDisplay: List<Long> = filePager.startBytePositionsInViewport

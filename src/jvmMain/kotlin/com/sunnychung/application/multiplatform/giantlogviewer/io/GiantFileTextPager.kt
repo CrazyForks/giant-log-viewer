@@ -320,8 +320,10 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
     }
 
     internal fun moveToPrev(numOfRowsToMove: Int, startBytePosition: Long = viewportStartBytePosition) {
-        viewportStartBytePosition = findBytePositionOfPrevRow(numOfRowsToMove, startBytePosition)
-        rebuildCacheIfInvalid()
+        lock.write {
+            viewportStartBytePosition = findBytePositionOfPrevRow(numOfRowsToMove, startBytePosition)
+            rebuildCacheIfInvalid()
+        }
     }
 
     fun moveToPrevPage() {
@@ -329,8 +331,8 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
         moveToPrev(numOfRowsInViewport)
     }
 
-    fun moveToPrevRow() {
-        moveToPrev(1)
+    fun moveToPrevRow(rows: Int = 1) {
+        moveToPrev(rows)
     }
 
     fun moveToTheLastRow() {
