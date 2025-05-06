@@ -61,8 +61,8 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: 'signed'
           parameters: |
-            version: ${{ github.ref_name }}
-            commit: ${{ github.sha }}
+            version: ${{ toJSON(github.ref_name) }}
+            commit: ${{ toJSON(github.sha) }}
       - run: ls -lR signed && mv "./signed/GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}-signed.zip" "GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}.zip"
       - uses: softprops/action-gh-release@v1
         with:
