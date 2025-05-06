@@ -63,7 +63,8 @@ jobs:
           parameters: |
             version: ${{ toJSON(github.ref_name) }}
             commit: ${{ toJSON(github.sha) }}
-      - run: ls -lR signed && mv "./signed/GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}-signed.zip" "GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}.zip"
+      - run: ls -lR ./signed && mv "./signed/GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}-unsigned-boxed.zip" "GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}.zip"
+        shell: bash # let Windows use bash
       - uses: softprops/action-gh-release@v1
         with:
           files: "GiantLogViewer-${{ github.ref_name }}-windows-${{ runner.arch }}.zip"
