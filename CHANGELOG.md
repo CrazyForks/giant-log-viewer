@@ -12,6 +12,9 @@ _Changes since 1.1.1_
 - Scroll to navigate
 - Click or drag the vertical bar to navigate
 
+### Fixed
+- Crash while reading a 7 GB file (#3)
+
 
 ## [1.1.1] -- 2025-04-18
 

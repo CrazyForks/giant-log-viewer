@@ -28,7 +28,7 @@ class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024
         }
         if (block.anchor == FileAnchor.Start) {
             val readStart = block.position * blockSize
-            val readLength = minOf(blockSize, (fileSize - readStart).toInt())
+            val readLength = minOf(blockSize.toLong(), fileSize - readStart).toInt()
             val bytes = ByteArray(readLength)
             if (readLength > 0) {
                 file.seek(readStart)
