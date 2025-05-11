@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
@@ -21,6 +20,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptions
+import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchResultType
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 
@@ -35,6 +35,7 @@ fun TextSearchBar(
 //    statusText: String,
     searchOptions: SearchOptions,
     isSearchBackwardDefault: Boolean,
+    searchResultType: SearchResultType,
     onToggleRegex: (Boolean) -> Unit,
     onToggleCaseSensitive: (Boolean) -> Unit,
     onToggleWholeWord: (Boolean) -> Unit,
@@ -85,8 +86,13 @@ fun TextSearchBar(
             onFinishInit = {
                 focusRequester.requestFocus()
             },
+            backgroundColor = when (searchResultType) {
+                SearchResultType.NotYetSearch -> colors.textFieldBackground
+                SearchResultType.NoResult -> colors.searchTextFieldBackgroundNoResult
+                SearchResultType.SomeResult -> colors.searchTextFieldBackgroundSomeResult
+            },
             modifier = Modifier.weight(1f)
-                .focusRequester(focusRequester),
+                .focusRequester(focusRequester)
         )
         TextToggleButton(
             text = ".*",

@@ -11,6 +11,7 @@ _Changes since 1.1.1_
 ### Added
 - Scroll to navigate
 - Click or drag the vertical bar to navigate
+- Search bar text field background now changes according to the search result
 
 ### Fixed
 - Crash while reading a 7 GB file (#3)

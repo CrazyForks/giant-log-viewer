@@ -46,6 +46,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextP
 import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContext
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptions
+import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchResultType
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import java.io.File
@@ -146,6 +147,8 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
 
     var searchCursor by remember(filePager) { mutableStateOf(0L) }
     var highlightByteRange by remember(filePager) { mutableStateOf(0L .. -1L) }
+    var searchOptionsOfResult by remember { mutableStateOf<SearchOptions?>(null) }
+    var searchEntryOfResult by remember { mutableStateOf("") }
 
     fun currentSearchRegex(): Regex? {
         if (searchEntry.isEmpty()) {
@@ -237,6 +240,13 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                 onTextChange = { searchEntry = it },
                 searchOptions = searchOptions,
                 isSearchBackwardDefault = isSearchBackwardDefault,
+                searchResultType = if (searchOptions != searchOptionsOfResult || searchEntry != searchEntryOfResult) {
+                    SearchResultType.NotYetSearch
+                } else if (highlightByteRange.isEmpty()) {
+                    SearchResultType.NoResult
+                } else {
+                    SearchResultType.SomeResult
+                },
                 onToggleRegex = {
                     searchOptions = searchOptions.copy(isRegex = it)
                 },
@@ -263,6 +273,9 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
 //                        searchCursor = 0
                     }
                     highlightByteRange = result
+
+                    searchOptionsOfResult = searchOptions
+                    searchEntryOfResult = searchEntry
                 },
                 onClickNext = {
                     val regex = currentSearchRegex() ?: return@TextSearchBar
@@ -282,6 +295,9 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
 //                            searchCursor = pager.fileReader.lengthInBytes()
                         }
                         highlightByteRange = result
+
+                        searchOptionsOfResult = searchOptions
+                        searchEntryOfResult = searchEntry
                     }
                 },
                 modifier = Modifier
