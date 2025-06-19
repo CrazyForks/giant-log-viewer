@@ -145,10 +145,12 @@ fun GiantTextViewer(
             val numOfRowsToScroll = (scrollY / rowHeight).toInt()
             scrollY -= rowHeight * numOfRowsToScroll
             filePager.moveToNextRow(numOfRowsToScroll)
+            onNavigate(filePager.viewportStartBytePosition)
         } else if (scrollY <= -rowHeight) {
             val numOfRowsToScroll = (abs(scrollY) / rowHeight).toInt()
             scrollY += rowHeight * numOfRowsToScroll
             filePager.moveToPrevRow(numOfRowsToScroll)
+            onNavigate(filePager.viewportStartBytePosition)
         }
         delta
     }

@@ -6,7 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-Nothing yet.
+_Changes since 1.2.0_
+
+### Fixed
+- Mouse scrolling did not reposition the search cursor correctly
 
 
 ## [1.2.0] -- 2025-05-12
