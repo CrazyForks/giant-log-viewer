@@ -52,6 +52,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceB
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
+import com.sunnychung.application.multiplatform.giantlogviewer.viewstate.FileViewState
 import com.sunnychung.lib.multiplatform.bigtext.annotation.TemporaryBigTextApi
 import com.sunnychung.lib.multiplatform.bigtext.compose.ComposeUnicodeCharMeasurer
 import com.sunnychung.lib.multiplatform.bigtext.extension.isCtrlOrCmdPressed
@@ -68,6 +69,7 @@ import kotlin.math.floor
 @Composable
 fun GiantTextViewer(
     modifier: Modifier,
+    fileViewState: FileViewState,
     filePath: String,
     refreshKey: Int = 0,
     highlightByteRange: LongRange,
@@ -100,12 +102,12 @@ fun GiantTextViewer(
     val textLayouter = remember(charMeasurer) { MonospaceBidirectionalTextLayouter(charMeasurer) }
 
     val fileReader = remember(filePath, refreshKey) {
-        GiantFileReader(filePath)
+        GiantFileReader(filePath, initialFileLength = fileViewState.fileLength)
     }
     val filePager: GiantFileTextPager = remember(fileReader, textLayouter) {
-        ComposeGiantFileTextPager(fileReader, textLayouter)
+        ComposeGiantFileTextPager(fileReader, textLayouter, fileViewState.fileLength)
     }
-    val fileLength = file.length()
+    val fileLength = fileViewState.fileLength
 
     val clipboardManager = LocalClipboardManager.current
 
@@ -324,13 +326,13 @@ fun GiantTextViewer(
 
         fun moveToPositionByDragY(dragY: Float) {
             val confinedDragY = dragY.coerceIn(0f .. contentComponentHeight.toFloat())
-            val desiredPosition = (file.length() * (confinedDragY.toDouble() / contentComponentHeight.toDouble())).toLong()
+            val desiredPosition = (fileViewState.fileLength * (confinedDragY.toDouble() / contentComponentHeight.toDouble())).toLong()
             filePager.moveToRowOfBytePosition(desiredPosition)
         }
 
         VerticalIndicatorView(
-            value = if (fileReader.lengthInBytes() > 0) {
-                (filePager.viewportStartBytePosition.toDouble() / fileReader.lengthInBytes().toDouble()).toFloat()
+            value = if (fileViewState.fileLength > 0) {
+                (filePager.viewportStartBytePosition.toDouble() / fileViewState.fileLength.toDouble()).toFloat()
             } else {
                 1f
             },

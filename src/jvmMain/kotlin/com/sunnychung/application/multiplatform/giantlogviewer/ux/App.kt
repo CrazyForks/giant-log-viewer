@@ -49,6 +49,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptio
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchResultType
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
+import com.sunnychung.application.multiplatform.giantlogviewer.viewstate.FileViewState
 import java.io.File
 import java.net.URI
 import java.util.regex.Pattern
@@ -134,6 +135,8 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
     val viewerFocusRequester = remember { FocusRequester() }
     var filePager: GiantFileTextPager? by remember { mutableStateOf(null) }
 
+    var fileViewState by remember(selectedFilePath) { mutableStateOf(FileViewState(File(selectedFilePath))) }
+
     var isSearchBarVisible by remember { mutableStateOf(false) }
     var searchEntry by remember { mutableStateOf("") }
     var searchOptions by remember { mutableStateOf(
@@ -216,6 +219,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
             onSelectFile(file)
 
             GiantTextViewer(
+                fileViewState = fileViewState,
                 filePath = selectedFilePath,
                 highlightByteRange = highlightByteRange,
                 onPagerReady = { filePager = it },
@@ -280,7 +284,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                 onClickNext = {
                     val regex = currentSearchRegex() ?: return@TextSearchBar
                     val pager = filePager ?: return@TextSearchBar
-                    if (pager.viewportStartBytePosition < pager.fileReader.lengthInBytes()) {
+                    if (pager.viewportStartBytePosition < fileViewState.fileLength) {
                         val result = try {
                             pager.searchAtAndForward(searchCursor + 1, regex)
                         } catch (e: Throwable) {
@@ -292,7 +296,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                             println("search found at $result")
                             pager.moveToRowOfBytePosition(result.start)
                         } else {
-//                            searchCursor = pager.fileReader.lengthInBytes()
+//                            searchCursor = fileViewState.fileLength
                         }
                         highlightByteRange = result
 
