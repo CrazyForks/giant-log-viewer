@@ -12,9 +12,16 @@ import kotlin.math.roundToInt
 
 val lineSeparatorRegex = "\r?\n".toRegex()
 
-abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayouter: BidirectionalTextLayouter) {
+abstract class GiantFileTextPager(
+    val fileReader: GiantFileReader,
+    val textLayouter: BidirectionalTextLayouter,
+    initialFileLength: Long,
+) {
 
     protected val lock = ReentrantReadWriteLock()
+
+    var fileLength: Long = initialFileLength.takeIf { it > 0 } ?:
+        fileReader.lengthInBytes()
 
     @Deprecated("No longer maintained as no fast way to determine the value when the cursor is moved to EOF")
     var viewportStartCharPosition: Long = 0L
@@ -51,7 +58,8 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
 
     val isSoftWrapEnabled: Boolean = true
 
-    private var numOfRowsInViewport = 0
+    var numOfRowsInViewport = 0
+        private set
 
     abstract var textInViewport: List<CharSequence>
         protected set
@@ -346,7 +354,7 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
     }
 
     fun moveToTheLastRow() {
-        val fileLength: Long = fileReader.lengthInBytes()
+        val fileLength: Long = fileLength
         if (fileLength < 1) {
             return
         }
@@ -428,7 +436,7 @@ abstract class GiantFileTextPager(val fileReader: GiantFileReader, val textLayou
     fun searchAtAndForward(startBytePosition: Long, searchPredicate: Regex): LongRange {
         require(startBytePosition >= 0) { "startBytePosition should not be negative" }
 
-        val fileLength = fileReader.lengthInBytes()
+        val fileLength = fileLength
         val searchTailLength = searchPredicate.pattern
         val searchTailSize = searchTailLength.toByteArray(Charsets.UTF_8).size
         val searchPattern = searchPredicate

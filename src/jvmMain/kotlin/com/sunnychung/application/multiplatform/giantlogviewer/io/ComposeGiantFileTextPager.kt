@@ -7,8 +7,9 @@ import com.sunnychung.application.multiplatform.giantlogviewer.layout.Bidirectio
 
 class ComposeGiantFileTextPager(
     fileReader: GiantFileReader,
-    textLayouter: BidirectionalTextLayouter
-) : GiantFileTextPager(fileReader, textLayouter) {
+    textLayouter: BidirectionalTextLayouter,
+    initialFileLength: Long,
+) : GiantFileTextPager(fileReader, textLayouter, initialFileLength) {
     override var textInViewport: List<CharSequence> by mutableStateOf(emptyList())
     override var startBytePositionsInViewport: List<Long> by mutableStateOf(emptyList())
 }

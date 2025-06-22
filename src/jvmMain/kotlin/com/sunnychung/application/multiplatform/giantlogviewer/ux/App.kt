@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,12 +33,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sunnychung.application.giantlogviewer.generated.resources.Res
+import com.sunnychung.application.giantlogviewer.generated.resources.fast_forward
+import com.sunnychung.application.giantlogviewer.generated.resources.fast_forward_filled
 import com.sunnychung.application.giantlogviewer.generated.resources.help
 import com.sunnychung.application.giantlogviewer.generated.resources.info
-import com.sunnychung.application.multiplatform.giantlogviewer.document.lightColorTheme
 import com.sunnychung.application.giantlogviewer.generated.resources.setting
 import com.sunnychung.application.multiplatform.giantlogviewer.document.ThemeDI
-import com.sunnychung.application.multiplatform.giantlogviewer.document.darkColorTheme
 import com.sunnychung.application.multiplatform.giantlogviewer.document.toColorTheme
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.subscribeStateToEntity
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
@@ -49,6 +48,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptio
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchResultType
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
+import com.sunnychung.application.multiplatform.giantlogviewer.viewstate.FileViewState
 import java.io.File
 import java.net.URI
 import java.util.regex.Pattern
@@ -64,10 +64,16 @@ fun App() {
         .subscribeStateToEntity(ThemeDI)
         .themes
 
+    var selectedFilePath by remember { mutableStateOf("") }
+    var fileViewState: FileViewState by remember(selectedFilePath) { mutableStateOf(FileViewState(File(selectedFilePath))) }
+
     print("App recompose - $themePreference")
 
     CompositionLocalProvider(LocalColor provides themePreference.toColorTheme()) {
         val colors = LocalColor.current
+
+        val viewerFocusRequester = remember { FocusRequester() }
+
         Column(Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().height(30.dp)
@@ -95,6 +101,18 @@ fun App() {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                 )
+                if (fileViewState.isFileExist) {
+                    AppImage(
+                        resource = if (!fileViewState.isFollowing) Res.drawable.fast_forward else Res.drawable.fast_forward_filled,
+                        size = 20.dp,
+                        color = if (!fileViewState.isFollowing) colors.menuBarIconColor else colors.menuBarIconActivated,
+                        modifier = Modifier.padding(5.dp)
+                            .clickable {
+                                fileViewState.isFollowing = !fileViewState.isFollowing
+                                viewerFocusRequester.requestFocus()
+                            }
+                    )
+                }
                 AppImage(
                     resource = Res.drawable.help,
                     size = 20.dp,
@@ -115,7 +133,14 @@ fun App() {
                 )
             }
 
-            AppMainContent(onSelectFile = { selectedFileName = it?.name ?: "" })
+            AppMainContent(
+                fileViewState = fileViewState,
+                onSelectFile = {
+                    selectedFileName = it?.name ?: ""
+                    selectedFilePath = it?.path ?: ""
+                },
+                modifier = Modifier.focusRequester(viewerFocusRequester)
+            )
 
             HelpWindow(isVisible = isShowHelpWindow, onClose = { isShowHelpWindow = false })
             AboutWindow(isVisible = isShowAboutWindow, onClose = { isShowAboutWindow = false })
@@ -126,8 +151,10 @@ fun App() {
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) -> Unit) {
+private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileViewState, onSelectFile: (File?) -> Unit) {
     val colors = LocalColor.current
+
+    val isNavigationLocked = fileViewState.isFollowing
 
     var selectedFilePath by remember { mutableStateOf("") }
 
@@ -185,6 +212,8 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
 
                             println("f: ${uri.scheme} ${File(uri).absolutePath}")
                             selectedFilePath = File(uri).absolutePath
+
+                            viewerFocusRequester.requestFocus()
                         }
                     }
                 )
@@ -216,6 +245,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
             onSelectFile(file)
 
             GiantTextViewer(
+                fileViewState = fileViewState,
                 filePath = selectedFilePath,
                 highlightByteRange = highlightByteRange,
                 onPagerReady = { filePager = it },
@@ -248,15 +278,20 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                     SearchResultType.SomeResult
                 },
                 onToggleRegex = {
+                    if (isNavigationLocked) return@TextSearchBar
                     searchOptions = searchOptions.copy(isRegex = it)
                 },
                 onToggleCaseSensitive = {
+                    if (isNavigationLocked) return@TextSearchBar
                     searchOptions = searchOptions.copy(isCaseSensitive = it)
                 },
                 onToggleWholeWord = {
+                    if (isNavigationLocked) return@TextSearchBar
                     searchOptions = searchOptions.copy(isWholeWord = it)
                 },
                 onClickPrev = {
+                    if (isNavigationLocked) return@TextSearchBar
+
                     val regex = currentSearchRegex() ?: return@TextSearchBar
                     val pager = filePager ?: return@TextSearchBar
                     val result = try {
@@ -278,9 +313,11 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                     searchEntryOfResult = searchEntry
                 },
                 onClickNext = {
+                    if (isNavigationLocked) return@TextSearchBar
+
                     val regex = currentSearchRegex() ?: return@TextSearchBar
                     val pager = filePager ?: return@TextSearchBar
-                    if (pager.viewportStartBytePosition < pager.fileReader.lengthInBytes()) {
+                    if (pager.viewportStartBytePosition < fileViewState.fileLength) {
                         val result = try {
                             pager.searchAtAndForward(searchCursor + 1, regex)
                         } catch (e: Throwable) {
@@ -292,7 +329,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, onSelectFile: (File?) 
                             println("search found at $result")
                             pager.moveToRowOfBytePosition(result.start)
                         } else {
-//                            searchCursor = pager.fileReader.lengthInBytes()
+//                            searchCursor = fileViewState.fileLength
                         }
                         highlightByteRange = result
 

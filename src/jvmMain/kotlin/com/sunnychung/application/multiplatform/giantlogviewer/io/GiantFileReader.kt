@@ -9,8 +9,11 @@ import kotlin.concurrent.write
 
 private const val BLOCK_CURRENT = 1
 
-class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024) : AutoCloseable {
+class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024, initialFileLength: Long = -1) : AutoCloseable {
     private val file = RandomAccessFile(filePath, "r")
+
+    var fileLength: Long = initialFileLength.takeIf { it > 0 } ?:
+        file.length()
 
     private val blockCacheLock = ReentrantReadWriteLock()
     private val blockCache: Array<FileBlock?> = arrayOfNulls(4)
@@ -20,7 +23,7 @@ class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024
         file.close()
     }
 
-    fun lengthInBytes(): Long = file.length()
+    fun lengthInBytes(): Long = fileLength
 
     private fun readBlock(block: FileBlockPosition, fileSize: Long): Pair<ByteArray, LongRange> {
         if (block.position < 0 || block.position > fileSize / blockSize) {
@@ -41,7 +44,7 @@ class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024
     }
 
     private fun readBlockIfNotRead(block: FileBlockPosition): FileBlock {
-        val fileSize = file.length()
+        val fileSize = fileLength
         blockCache.forEach {
             if (it != null
                 && it.pos == block
@@ -64,7 +67,7 @@ class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024
     }
 
     private fun loadBlockPosition(block: FileBlockPosition) {
-        val fileSize = file.length()
+        val fileSize = fileLength
         if (block.position < 0 || block.position > fileSize / blockSize) {
             throw IndexOutOfBoundsException("Attempt to read block ${block.position} from ${block.anchor} but there are only ${fileSize / blockSize} blocks. File size is ${fileSize}.")
         }

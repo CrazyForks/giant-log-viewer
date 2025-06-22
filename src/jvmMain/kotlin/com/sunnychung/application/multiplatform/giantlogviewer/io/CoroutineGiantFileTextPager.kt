@@ -8,8 +8,9 @@ import kotlin.concurrent.write
 
 class CoroutineGiantFileTextPager(
     fileReader: GiantFileReader,
-    textLayouter: BidirectionalTextLayouter
-) : GiantFileTextPager(fileReader, textLayouter) {
+    textLayouter: BidirectionalTextLayouter,
+    initialFileLength: Long = -1,
+) : GiantFileTextPager(fileReader, textLayouter, initialFileLength) {
     override var textInViewport: List<CharSequence>
         get() = lock.read { viewportTextMutableStateFlow.value }
         set(value) {
