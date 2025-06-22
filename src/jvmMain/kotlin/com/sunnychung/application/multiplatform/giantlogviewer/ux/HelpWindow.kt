@@ -105,7 +105,7 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     KeyBinding("Ctrl/Command-↓", "End of file"),
                     KeyBinding("Ctrl/Command-↑", "Start of file"),
                     KeyBinding("Ctrl/Command-F", "Search forward"),
-                    KeyBinding("⇧F", "Follow new appends"),
+                    KeyBinding("Shift-F", "Follow new appends"),
                     KeyBinding("Esc", "Exit follow/search"),
                     KeyBinding("Enter", "Search next"),
                     KeyBinding("Shift-Enter", "Search previous"),
