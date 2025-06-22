@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 _Changes since 1.2.0_
 
+### Added
+- Follow new appends to the end of the opened file (Shift-F)
+
 ### Changed
 - New appends to the opened file are not automatically followed anymore
 

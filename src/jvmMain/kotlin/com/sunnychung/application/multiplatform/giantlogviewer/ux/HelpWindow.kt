@@ -89,6 +89,8 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     KeyBinding("g", "Start of file"),
                     KeyBinding("⇧/", "Search backward"),
                     KeyBinding("/", "Search forward"),
+                    KeyBinding("⇧F", "Follow new appends"),
+                    KeyBinding("Ctrl-C", "Exit follow"),
                     KeyBinding("Esc", "Exit search"),
                 ),
                 modifier = Modifier.weight(.42f).fillMaxHeight()
@@ -103,7 +105,8 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     KeyBinding("Ctrl/Command-↓", "End of file"),
                     KeyBinding("Ctrl/Command-↑", "Start of file"),
                     KeyBinding("Ctrl/Command-F", "Search forward"),
-                    KeyBinding("Esc", "Exit search"),
+                    KeyBinding("⇧F", "Follow new appends"),
+                    KeyBinding("Esc", "Exit follow/search"),
                     KeyBinding("Enter", "Search next"),
                     KeyBinding("Shift-Enter", "Search previous"),
                     KeyBinding("Ctrl/Command-C", "Copy selection"),

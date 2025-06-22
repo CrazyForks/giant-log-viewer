@@ -58,7 +58,8 @@ abstract class GiantFileTextPager(
 
     val isSoftWrapEnabled: Boolean = true
 
-    private var numOfRowsInViewport = 0
+    var numOfRowsInViewport = 0
+        private set
 
     abstract var textInViewport: List<CharSequence>
         protected set

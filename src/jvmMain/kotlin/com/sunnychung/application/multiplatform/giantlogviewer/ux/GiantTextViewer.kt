@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -60,6 +61,9 @@ import com.sunnychung.lib.multiplatform.bigtext.util.debouncedStateOf
 import com.sunnychung.lib.multiplatform.bigtext.util.string
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import com.sunnychung.lib.multiplatform.kdatetime.extension.milliseconds
+import com.sunnychung.lib.multiplatform.kdatetime.extension.seconds
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.floor
@@ -91,6 +95,9 @@ fun GiantTextViewer(
     val density = LocalDensity.current
     val font = LocalFont.current
     val colors = LocalColor.current
+
+    val isNavigationLocked = fileViewState.isFollowing
+
     val textMeasurer = rememberTextMeasurer(0)
     val textStyle = remember(font, colors) {
         TextStyle(
@@ -108,6 +115,8 @@ fun GiantTextViewer(
         ComposeGiantFileTextPager(fileReader, textLayouter, fileViewState.fileLength)
     }
     val fileLength = fileViewState.fileLength
+    fileReader.fileLength = fileLength
+    filePager.fileLength = fileLength
 
     val clipboardManager = LocalClipboardManager.current
 
@@ -134,6 +143,10 @@ fun GiantTextViewer(
         mutableStateOf(0f)
     }
     val scrollState = rememberScrollableState { delta ->
+        if (isNavigationLocked) {
+            return@rememberScrollableState 0f
+        }
+
         val reversedDelta = -delta
         if (reversedDelta < 0 && filePager.viewportStartBytePosition <= 0) {
             return@rememberScrollableState 0f
@@ -171,6 +184,13 @@ fun GiantTextViewer(
         }
     }
 
+    fun navigate(action: GiantFileTextPager.() -> Unit): Boolean {
+        if (isNavigationLocked) return false
+        filePager.action()
+        onNavigate(filePager.viewportStartBytePosition)
+        return true
+    }
+
     Row(modifier
 //        .onKeyEvent { e ->
         .onPreviewKeyEvent { e ->
@@ -180,22 +200,41 @@ fun GiantTextViewer(
                 when {
                     e.key == Key.F && e.isCtrlOrCmdPressed() -> onSearchRequest(SearchMode.Forward)
 
-                    e.key == Key.F -> { filePager.moveToNextPage(); onNavigate(filePager.viewportStartBytePosition) }
-                    e.key == Key.B -> { filePager.moveToPrevPage(); onNavigate(filePager.viewportStartBytePosition) }
-                    e.key == Key.DirectionUp && e.isAltPressed -> { filePager.moveToPrevPage(); onNavigate(filePager.viewportStartBytePosition) }
-                    e.key == Key.DirectionDown && e.isAltPressed -> { filePager.moveToNextPage(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.F && e.isShiftPressed -> {
+                        fileViewState.isFollowing = true
+                        return@onPreviewKeyEvent true
+                    }
 
-                    e.key == Key.G && e.isShiftPressed -> { filePager.moveToTheLastRow(); onNavigate(filePager.viewportStartBytePosition) }
-                    e.key == Key.DirectionDown && e.isCtrlOrCmdPressed() -> { filePager.moveToTheLastRow(); onNavigate(filePager.viewportStartBytePosition) }
-                    e.key == Key.G -> { filePager.moveToTheFirstRow(); onNavigate(filePager.viewportStartBytePosition) }
-                    e.key == Key.DirectionUp && e.isCtrlOrCmdPressed() -> { filePager.moveToTheFirstRow(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.F -> return@onPreviewKeyEvent navigate { moveToNextPage() }
+                    e.key == Key.B -> return@onPreviewKeyEvent navigate { moveToPrevPage() }
+                    e.key == Key.DirectionUp && e.isAltPressed -> return@onPreviewKeyEvent navigate { moveToPrevPage() }
+                    e.key == Key.DirectionDown && e.isAltPressed -> return@onPreviewKeyEvent navigate { moveToNextPage() }
 
-                    e.key == Key.DirectionUp -> { filePager.moveToPrevRow(); onNavigate(filePager.viewportStartBytePosition) }
-                    e.key == Key.DirectionDown -> { filePager.moveToNextRow(); onNavigate(filePager.viewportStartBytePosition) }
+                    e.key == Key.G && e.isShiftPressed -> return@onPreviewKeyEvent navigate { moveToTheLastRow() }
+                    e.key == Key.DirectionDown && e.isCtrlOrCmdPressed() -> return@onPreviewKeyEvent navigate { moveToTheLastRow() }
+                    e.key == Key.G -> return@onPreviewKeyEvent navigate { moveToTheFirstRow() }
+                    e.key == Key.DirectionUp && e.isCtrlOrCmdPressed() -> return@onPreviewKeyEvent navigate { moveToTheFirstRow() }
+
+                    e.key == Key.DirectionUp -> return@onPreviewKeyEvent navigate { moveToPrevRow() }
+                    e.key == Key.DirectionDown -> return@onPreviewKeyEvent navigate { moveToNextRow() }
 
                     e.key == Key.Slash && e.isShiftPressed -> onSearchRequest(SearchMode.Backward)
                     e.key == Key.Slash -> onSearchRequest(SearchMode.Forward)
-                    e.key == Key.Escape -> onSearchRequest(SearchMode.None)
+
+                    e.key == Key.Escape -> {
+                        if (fileViewState.isFollowing) {
+                            fileViewState.isFollowing = false
+                            return@onPreviewKeyEvent true
+                        }
+                        onSearchRequest(SearchMode.None)
+                    }
+
+                    e.key == Key.C && e.isCtrlPressed -> {
+                        if (fileViewState.isFollowing) {
+                            fileViewState.isFollowing = false
+                            // continue to remaining actions
+                        }
+                    }
 
                     e.key == Key.C && e.isCtrlOrCmdPressed() -> copySelection()
 
@@ -352,6 +391,20 @@ fun GiantTextViewer(
 
     LaunchedEffect(filePath, refreshKey) {
         focusRequester.requestFocus()
+    }
+
+    LaunchedEffect(filePath, fileViewState.isFollowing) {
+        if (fileViewState.isFollowing) {
+            launch {
+                while (fileViewState.isFollowing) {
+                    fileViewState.fileLength = fileViewState.file.length()
+                    filePager.moveToTheLastRow()
+                    filePager.moveToPrevRow(rows = (filePager.numOfRowsInViewport - 3).coerceAtLeast(0))
+                    onNavigate(filePager.viewportStartBytePosition)
+                    delay(1.seconds().millis)
+                }
+            }
+        }
     }
 
     DisposableEffect(filePath, refreshKey) {
