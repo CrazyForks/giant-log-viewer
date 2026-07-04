@@ -6,60 +6,57 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextP
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.util.DivisibleWidthCharMeasurer
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import java.io.File
 import kotlin.random.Random
-import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class GiantFileTextPagerSearchBackwardTest {
 
-    @Test
-    fun simpleSearch() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun simpleSearch(encoding: TestFileEncoding) {
         val fileContent = "abcdfg\nefg\nhijfgfkfgl"
         val searchPattern = "fg"
-        createTestFile(fileContent) { file ->
-            verifySearch(file, fileContent, searchPattern)
-        }
+        verifySearchForEncoding(encoding, fileContent, searchPattern)
     }
 
-    @Test
-    fun overlappedSearches() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun overlappedSearches(encoding: TestFileEncoding) {
         val fileContent = "fffabcdffff\nefg\nfffffffff"
         val searchPattern = "ff"
-        createTestFile(fileContent) { file ->
-            verifySearch(file, fileContent, searchPattern)
-        }
+        verifySearchForEncoding(encoding, fileContent, searchPattern)
     }
 
-    @Test
-    fun singleChar() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun singleChar(encoding: TestFileEncoding) {
         val fileContent = "fffabcdffff\nefg\nfffffffff"
         val searchPattern = "f"
-        createTestFile(fileContent) { file ->
-            verifySearch(file, fileContent, searchPattern)
-        }
+        verifySearchForEncoding(encoding, fileContent, searchPattern)
     }
 
-    @Test
-    fun notFound() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun notFound(encoding: TestFileEncoding) {
         val fileContent = "fffabcdffff\nefg\nfffffffff"
         val searchPattern = "z"
-        createTestFile(fileContent) { file ->
-            verifySearch(file, fileContent, searchPattern)
-        }
+        verifySearchForEncoding(encoding, fileContent, searchPattern)
     }
 
-    @Test
-    fun unicode() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicode(encoding: TestFileEncoding) {
         val fileContent = "喂你好你好你好你好你好呀."
         val searchPattern = "你好你"
-        createTestFile(fileContent) { file ->
-            verifySearch(file, fileContent, searchPattern)
-        }
+        verifySearchForEncoding(encoding, fileContent, searchPattern)
     }
 
-    @Test
-    fun asciiAcrossMultipleBlocks() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun asciiAcrossMultipleBlocks(encoding: TestFileEncoding) {
         val random = Random(2345)
         val searchPattern = "@@AB"
         val blockSize = 200
@@ -74,13 +71,12 @@ class GiantFileTextPagerSearchBackwardTest {
                 else -> searchPattern
             }
         }
-        createTestFile(fileContent) { file ->
-            verifySearch(file, fileContent, searchPattern, blockSize)
-        }
+        verifySearchForEncoding(encoding, fileContent, searchPattern, blockSize)
     }
 
-    @Test
-    fun searchLongTextInAsciiAcrossMultipleBlocks() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun searchLongTextInAsciiAcrossMultipleBlocks(encoding: TestFileEncoding) {
         val random = Random(2346)
         val searchPattern = "@@ABadiofjbafasoijgfafkmsgoasoksfoiasjfggnJngjgnsgnnsgaIJROEtmkfamskfgsdfgmksldmfgmksglsfGLMSFKGllmksgl"
         val blockSize = 200
@@ -95,26 +91,24 @@ class GiantFileTextPagerSearchBackwardTest {
                 else -> searchPattern
             }
         }
-        createTestFile(fileContent) { file ->
-            verifySearch(file, fileContent, searchPattern, blockSize)
-        }
+        verifySearchForEncoding(encoding, fileContent, searchPattern, blockSize)
     }
 
-    @Test
-    fun searchPatternLongerThanBlockSize() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun searchPatternLongerThanBlockSize(encoding: TestFileEncoding) {
         val searchPattern = "TARGET-" + "0123456789abcdef".repeat(5)
         val blockSize = 32
         val fileContent = "prefix\n" + searchPattern + "\nsuffix"
-        createTestFile(fileContent) { file ->
-            verifySearch(file, fileContent, searchPattern, blockSize, searchRange = file.length() downTo 0L)
-        }
+        verifySearchForEncoding(encoding, fileContent, searchPattern, blockSize) { file -> file.length() downTo 0L }
     }
 
-    @Test
-    fun boundedRegexSearchWithinLocalWindow() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun boundedRegexSearchWithinLocalWindow(encoding: TestFileEncoding) {
         val matchedText = "A" + "x".repeat(100) + "Z"
         val fileContent = "prefix\n" + matchedText + "\nsuffix"
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath, 64)
             val pager = CoroutineGiantFileTextPager(
                 fileReader,
@@ -122,17 +116,18 @@ class GiantFileTextPagerSearchBackwardTest {
             )
             pager.viewport = Viewport(width = 16 * 7, height = 12 * 5, density = 1f)
 
-            val expectedStart = "prefix\n".toByteArray(Charsets.UTF_8).size.toLong()
-            val expectedEnd = expectedStart + matchedText.toByteArray(Charsets.UTF_8).size
+            val expectedStart = encoding.bytePosition(fileContent, "prefix\n".length)
+            val expectedEnd = encoding.bytePosition(fileContent, "prefix\n".length + matchedText.length)
             assertEquals(expectedStart..<expectedEnd, pager.searchBackward(file.length(), Regex("A[\\s\\S]{100}Z")))
         }
     }
 
-    @Test
-    fun largeBoundedRegexSearchIsLimitedToLocalWindow() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun largeBoundedRegexSearchIsLimitedToLocalWindow(encoding: TestFileEncoding) {
         val matchedText = "A" + "x".repeat(1000) + "Z"
         val fileContent = "prefix\n" + matchedText + "\nsuffix"
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath, 64)
             val pager = CoroutineGiantFileTextPager(
                 fileReader,
@@ -144,10 +139,11 @@ class GiantFileTextPagerSearchBackwardTest {
         }
     }
 
-    @Test
-    fun unboundedRegexSearchIsLimitedToLocalWindow() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unboundedRegexSearchIsLimitedToLocalWindow(encoding: TestFileEncoding) {
         val fileContent = "prefix\nA" + "x".repeat(1000) + "Z\nsuffix"
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath, 64)
             val pager = CoroutineGiantFileTextPager(
                 fileReader,
@@ -159,11 +155,12 @@ class GiantFileTextPagerSearchBackwardTest {
         }
     }
 
-    @Test
-    fun unboundedRegexSearchFindsMatchInsideLocalWindow() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unboundedRegexSearchFindsMatchInsideLocalWindow(encoding: TestFileEncoding) {
         val matchedText = "A" + "x".repeat(100) + "Z"
         val fileContent = "prefix\n" + matchedText + "\nsuffix"
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath, 64)
             val pager = CoroutineGiantFileTextPager(
                 fileReader,
@@ -171,14 +168,15 @@ class GiantFileTextPagerSearchBackwardTest {
             )
             pager.viewport = Viewport(width = 16 * 7, height = 12 * 5, density = 1f)
 
-            val expectedStart = "prefix\n".toByteArray(Charsets.UTF_8).size.toLong()
-            val expectedEnd = expectedStart + matchedText.toByteArray(Charsets.UTF_8).size
+            val expectedStart = encoding.bytePosition(fileContent, "prefix\n".length)
+            val expectedEnd = encoding.bytePosition(fileContent, "prefix\n".length + matchedText.length)
             assertEquals(expectedStart..<expectedEnd, pager.searchBackward(file.length(), Regex("A.*Z")))
         }
     }
 
-    @Test
-    fun unicodeAcrossMultipleBlocks() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicodeAcrossMultipleBlocks(encoding: TestFileEncoding) {
         val random = Random(2347)
         val searchPattern = "喂你好😄😄!"
         val blockSize = 200
@@ -193,13 +191,12 @@ class GiantFileTextPagerSearchBackwardTest {
                 else -> searchPattern
             }
         }
-        createTestFile(fileContent) { file ->
-            verifySearch(file, fileContent, searchPattern, blockSize)
-        }
+        verifySearchForEncoding(encoding, fileContent, searchPattern, blockSize)
     }
 
-    @Test
-    fun unicodeAcrossMultipleBlocksNotFound() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicodeAcrossMultipleBlocksNotFound(encoding: TestFileEncoding) {
         val random = Random(2347)
         val searchPattern = "喂你好😄😄!"
         val blockSize = 200
@@ -210,18 +207,37 @@ class GiantFileTextPagerSearchBackwardTest {
                 else -> "\n"
             }
         }
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileSize = file.length()
-            verifySearch(file, fileContent, searchPattern, blockSize, searchRange = fileSize downTo fileSize - 1005)
-            verifySearch(file, fileContent, searchPattern, blockSize, searchRange = fileSize * 7 / 10 + 300 downTo fileSize * 7 / 10 - 300)
-            verifySearch(file, fileContent, searchPattern, blockSize, searchRange = fileSize / 2 + 600 downTo fileSize / 2 - 600)
-            verifySearch(file, fileContent, searchPattern, blockSize, searchRange = fileSize / 5 + 300 downTo fileSize / 5 - 300)
-            verifySearch(file, fileContent, searchPattern, blockSize, searchRange = 1200L downTo 0L)
+            verifySearch(file, encoding, fileContent, searchPattern, blockSize, searchRange = fileSize downTo fileSize - 1005)
+            verifySearch(file, encoding, fileContent, searchPattern, blockSize, searchRange = fileSize * 7 / 10 + 300 downTo fileSize * 7 / 10 - 300)
+            verifySearch(file, encoding, fileContent, searchPattern, blockSize, searchRange = fileSize / 2 + 600 downTo fileSize / 2 - 600)
+            verifySearch(file, encoding, fileContent, searchPattern, blockSize, searchRange = fileSize / 5 + 300 downTo fileSize / 5 - 300)
+            verifySearch(file, encoding, fileContent, searchPattern, blockSize, searchRange = 1200L downTo 0L)
         }
     }
 }
 
-private fun verifySearch(file: File, fileContent: String, searchPattern: String, blockSize: Int = 1 * 1024 * 1024, searchRange: LongProgression? = null) {
+private fun verifySearchForEncoding(
+    encoding: TestFileEncoding,
+    fileContent: String,
+    searchPattern: String,
+    blockSize: Int = 1 * 1024 * 1024,
+    searchRange: (File) -> LongProgression? = { null },
+) {
+    createTestFile(fileContent, encoding) { file ->
+        verifySearch(file, encoding, fileContent, searchPattern, blockSize, searchRange(file))
+    }
+}
+
+private fun verifySearch(
+    file: File,
+    encoding: TestFileEncoding,
+    fileContent: String,
+    searchPattern: String,
+    blockSize: Int = 1 * 1024 * 1024,
+    searchRange: LongProgression? = null,
+) {
     val fileReader = GiantFileReader(file.absolutePath, blockSize)
     val pager = CoroutineGiantFileTextPager(
         fileReader, MonospaceBidirectionalTextLayouter(
@@ -233,7 +249,7 @@ private fun verifySearch(file: File, fileContent: String, searchPattern: String,
     val searchRegex = searchPattern.toRegex()
     (searchRange ?: (fileSize downTo 0)).forEach { i ->
         assertEquals(
-            lastBytePositionOf(fileContent, searchRegex, i),
+            lastBytePositionOf(fileContent, encoding, searchRegex, i),
             pager.searchBackward(i, searchRegex).also {
                 println("search starts at $i found $it")
             },
@@ -242,11 +258,10 @@ private fun verifySearch(file: File, fileContent: String, searchPattern: String,
     }
 }
 
-private fun lastBytePositionOf(content: String, regex: Regex, start: Long): LongRange {
+private fun lastBytePositionOf(content: String, encoding: TestFileEncoding, regex: Regex, start: Long): LongRange {
     return regex.findAll(content).findLast {
-        content.substring(0 ..< it.range.start).toByteArray(Charsets.UTF_8).size.toLong() < start
+        encoding.bytePosition(content, it.range.start) < start
     }?.let {
-        content.substring(0 ..< it.range.start).toByteArray(Charsets.UTF_8).size.toLong() ..<
-            content.substring(0 ..< it.range.endExclusive).toByteArray(Charsets.UTF_8).size.toLong()
+        encoding.byteRange(content, it.range)
     } ?: GiantFileTextPager.NOT_FOUND
 }

@@ -8,15 +8,18 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.lineSeparatorR
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.util.DivisibleWidthCharMeasurer
 import com.sunnychung.application.multiplatform.giantlogviewer.util.FixedWidthCharMeasurer
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class GiantFileTextPagerNextRowTest {
 
-    @Test
-    fun viewportRowCountCanExceedIntMaxValue() {
-        createTestFile("x\n") { file ->
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun viewportRowCountCanExceedIntMaxValue(encoding: TestFileEncoding) {
+        createTestFile("x\n", encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(
                 fileReader,
@@ -29,8 +32,9 @@ class GiantFileTextPagerNextRowTest {
         }
     }
 
-    @Test
-    fun singleLineLongText() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun singleLineLongText(encoding: TestFileEncoding) {
         val fileLength = 10000
         val fileContent = (0 ..< fileLength).joinToString("") {
             if (it % 10 == 0) {
@@ -39,7 +43,7 @@ class GiantFileTextPagerNextRowTest {
                 ('a'.code + (it % 10)).toChar().toString()
             }
         }
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
@@ -47,7 +51,7 @@ class GiantFileTextPagerNextRowTest {
             var loop = 0
             while (loop < fileLength / 10 && start < fileLength) {
                 assertEquals(start.toLong(), pager.viewportStartCharPosition)
-                assertEquals(start.toLong(), pager.viewportStartBytePosition)
+                assertEquals(encoding.bytePosition(fileContent, start), pager.viewportStartBytePosition)
                 val pageEnd = (start + 23 * 13).coerceAtMost(fileLength)
                 assertListOfStringStartWith(
                     fileContent.substring(start..< pageEnd).windowed(23, 23, true),
@@ -66,8 +70,9 @@ class GiantFileTextPagerNextRowTest {
         }
     }
 
-    @Test
-    fun multipleLines() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun multipleLines(encoding: TestFileEncoding) {
         val fileLength = 10000
         val random = Random(24680)
         val fileContent = (0 ..< fileLength).joinToString("") {
@@ -87,7 +92,7 @@ class GiantFileTextPagerNextRowTest {
             }
         }
 //        println(fileContent)
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
@@ -96,7 +101,7 @@ class GiantFileTextPagerNextRowTest {
             with (pageState) {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
-                    assertEquals(start.toLong(), pager.viewportStartBytePosition)
+                    assertEquals(encoding.bytePosition(fileContent, start), pager.viewportStartBytePosition)
                     updatePageState(this)
 
                     assertListOfStringStartWith(
@@ -122,20 +127,21 @@ class GiantFileTextPagerNextRowTest {
         }
     }
 
-    @Test
-    fun shortLine() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun shortLine(encoding: TestFileEncoding) {
         val fileLength = 5
         val random = Random(24680)
         val fileContent = "abcdE"
 //        println(fileContent)
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             (0 .. 1).forEach { loop ->
                 println("pos: ${pager.viewportStartCharPosition}")
                 assertEquals(0, pager.viewportStartCharPosition, "loop $loop")
-                assertEquals(0, pager.viewportStartBytePosition, "loop $loop")
+                assertEquals(encoding.contentStartBytePosition, pager.viewportStartBytePosition, "loop $loop")
                 assertListOfStringStartWith(
                     listOf(fileContent),
                     pager.textInViewport,
@@ -147,20 +153,21 @@ class GiantFileTextPagerNextRowTest {
         }
     }
 
-    @Test
-    fun emptyFile() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun emptyFile(encoding: TestFileEncoding) {
         val fileLength = 0
         val random = Random(24680)
         val fileContent = ""
 //        println(fileContent)
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
             (0 .. 1).forEach { loop ->
                 println("pos: ${pager.viewportStartCharPosition}")
                 assertEquals(0, pager.viewportStartCharPosition, "loop $loop")
-                assertEquals(0, pager.viewportStartBytePosition, "loop $loop")
+                assertEquals(encoding.contentStartBytePosition, pager.viewportStartBytePosition, "loop $loop")
                 assertListOfStringStartWith(
                     emptyList(),
                     pager.textInViewport,
@@ -172,8 +179,9 @@ class GiantFileTextPagerNextRowTest {
         }
     }
 
-    @Test
-    fun multipleBlocks() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun multipleBlocks(encoding: TestFileEncoding) {
         val fileLength = 100000
         val random = Random(24681)
         val fileContent = (0 ..< fileLength).joinToString("") {
@@ -193,7 +201,7 @@ class GiantFileTextPagerNextRowTest {
             }
         }
 //        println(fileContent)
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath, 4096)
             val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
@@ -202,7 +210,7 @@ class GiantFileTextPagerNextRowTest {
             with (pageState) {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
-                    assertEquals(start.toLong(), pager.viewportStartBytePosition)
+                    assertEquals(encoding.bytePosition(fileContent, start), pager.viewportStartBytePosition)
                     updatePageState(this)
 
                     assertListOfStringStartWith(
@@ -228,8 +236,9 @@ class GiantFileTextPagerNextRowTest {
         }
     }
 
-    @Test
-    fun unicodeSimple() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicodeSimple(encoding: TestFileEncoding) {
         val lines = listOf(
             "你好呀",
             "啲Emoji好q麻煩",
@@ -241,7 +250,7 @@ class GiantFileTextPagerNextRowTest {
         val fileContent = lines.joinToString("\n")
         val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
         val pageState = PageState(fileContent = fileContent)
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
@@ -250,7 +259,7 @@ class GiantFileTextPagerNextRowTest {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(
-                        fileContent.substring(0..<start).toByteArray(Charsets.UTF_8).size.toLong(),
+                        encoding.bytePosition(fileContent, start),
                         pager.viewportStartBytePosition
                     )
                     updatePageState(pageState)
@@ -279,8 +288,9 @@ class GiantFileTextPagerNextRowTest {
         }
     }
 
-    @Test
-    fun unicodeAcrossRowBreaks() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicodeAcrossRowBreaks(encoding: TestFileEncoding) {
         val lines = listOf(
             "喂你好",
             "啲Emoji好q麻煩",
@@ -299,7 +309,7 @@ class GiantFileTextPagerNextRowTest {
         val fileContent = multipliedLines.joinToString("\n")
         val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
         val pageState = PageState(fileContent = fileContent)
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
@@ -308,7 +318,7 @@ class GiantFileTextPagerNextRowTest {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(
-                        fileContent.substring(0..< start).toByteArray(Charsets.UTF_8).size.toLong(),
+                        encoding.bytePosition(fileContent, start),
                         pager.viewportStartBytePosition
                     )
                     updatePageState(pageState)
@@ -337,8 +347,9 @@ class GiantFileTextPagerNextRowTest {
         }
     }
 
-    @Test
-    fun unicodeFullPage() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicodeFullPage(encoding: TestFileEncoding) {
         val random = Random(24683)
         val charset = "零一二三四五六七八九"
         val fileContent = (0 ..< 10000).joinToString("") {
@@ -355,7 +366,7 @@ class GiantFileTextPagerNextRowTest {
         }
         val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
         val pageState = PageState(fileContent = fileContent)
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
@@ -364,7 +375,7 @@ class GiantFileTextPagerNextRowTest {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(
-                        fileContent.substring(0..< start).toByteArray(Charsets.UTF_8).size.toLong(),
+                        encoding.bytePosition(fileContent, start),
                         pager.viewportStartBytePosition
                     )
                     updatePageState(pageState)
@@ -393,8 +404,9 @@ class GiantFileTextPagerNextRowTest {
         }
     }
 
-    @Test
-    fun unicodeMultiBlocks() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicodeMultiBlocks(encoding: TestFileEncoding) {
         val random = Random(24683)
         val charset = "零一二三四五六七八九ABCDabc".map { it.toString() } + listOf("😄", "😄", "😇", "🤣", "🤯", "🤬", "🫡", "🫠", "😵")
         val fileContent = (0 ..< 100000).joinToString("") {
@@ -411,7 +423,7 @@ class GiantFileTextPagerNextRowTest {
         }
         val fileLength = fileContent.toByteArray(Charsets.UTF_8).size
         val pageState = PageState(fileContent = fileContent)
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath, 4096)
             val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)))
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 12 + 1, density = 1f)
@@ -420,7 +432,7 @@ class GiantFileTextPagerNextRowTest {
                 while (loop < fileLength && start < fileLength) {
                     assertEquals(start.toLong(), pager.viewportStartCharPosition)
                     assertEquals(
-                        fileContent.substring(0..< start).toByteArray(Charsets.UTF_8).size.toLong(),
+                        encoding.bytePosition(fileContent, start),
                         pager.viewportStartBytePosition
                     )
                     updatePageState(pageState)

@@ -7,6 +7,8 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.lineSeparatorR
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.util.DivisibleWidthCharMeasurer
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -66,11 +68,12 @@ class GiantFileTextPagerFirstRowTest {
         }
     }
 
-    @Test
-    fun jumpFromTheFirstRow() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun jumpFromTheFirstRow(encoding: TestFileEncoding) {
         val fileContent = "\nabcd\nefg\n\n\n\nhi\nj"
 
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(
                 fileReader, MonospaceBidirectionalTextLayouter(
@@ -82,7 +85,7 @@ class GiantFileTextPagerFirstRowTest {
             val startTime = KInstant.now()
             try {
                 pager.moveToTheFirstRow()
-                assertEquals(0L, pager.viewportStartBytePosition)
+                assertEquals(encoding.contentStartBytePosition, pager.viewportStartBytePosition)
                 assertListOfStringStartWith(
                     fileContent.split(lineSeparatorRegex)
                         .flatMap { it.chunkedUnicode(23) }
@@ -96,9 +99,10 @@ class GiantFileTextPagerFirstRowTest {
         }
     }
 
-    @Test
-    fun emptyFile() {
-        createTestFile("") { file ->
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun emptyFile(encoding: TestFileEncoding) {
+        createTestFile("", encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(
                 fileReader, MonospaceBidirectionalTextLayouter(
@@ -108,7 +112,7 @@ class GiantFileTextPagerFirstRowTest {
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 19 + 1, density = 1f)
 
             pager.moveToTheFirstRow()
-            assertEquals(0L, pager.viewportStartBytePosition)
+            assertEquals(encoding.contentStartBytePosition, pager.viewportStartBytePosition)
             assertListOfStringStartWith(
                 emptyList(),
                 pager.textInViewport,

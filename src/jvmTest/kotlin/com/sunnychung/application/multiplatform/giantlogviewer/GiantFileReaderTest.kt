@@ -3,7 +3,10 @@ package com.sunnychung.application.multiplatform.giantlogviewer
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
 import com.sunnychung.application.multiplatform.giantlogviewer.io.TextEncoding
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import java.io.File
+import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import kotlin.random.Random
@@ -11,8 +14,9 @@ import kotlin.test.Test
 
 class GiantFileReaderTest {
 
-    @Test
-    fun readAsciiFile() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun readAsciiFile(encoding: TestFileEncoding) {
         val random = Random(13579)
         val fileContent = (0 ..< 9999).joinToString("") {
             val newLineFactor = if (random.nextInt(13) == 0) {
@@ -25,27 +29,33 @@ class GiantFileReaderTest {
             }
             ('A'.code + (random.nextInt(26))).toChar().toString()
         }
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             GiantFileReader(file.absolutePath, 1024).use { reader ->
                 val readSize = 96
                 (0..fileContent.length / readSize).forEach {
                     val readFrom = it * readSize
                     val readUntil = ((it + 1) * readSize).coerceAtMost(fileContent.length)
                     val expectedContent = fileContent.substring(readFrom ..< readUntil)
-                    val (readContent, readBytesRange) = reader.readString(readFrom.toLong(), readUntil - readFrom)
+                    val readFromByte = encoding.bytePosition(fileContent, readFrom)
+                    val readUntilByte = encoding.bytePosition(fileContent, readUntil)
+                    val (readContent, readBytesRange) = reader.readString(
+                        readFromByte,
+                        (readUntilByte - readFromByte).toInt(),
+                    )
                     assertEquals(expectedContent, readContent) {
-                        "Mismatch content at $readFrom"
+                        "${encoding.name}: Mismatch content at $readFrom"
                     }
-                    assertEquals(readFrom.toLong()..<readUntil.toLong(), readBytesRange) {
-                        "Mismatch range at $readFrom"
+                    assertEquals(readFromByte..<readUntilByte, readBytesRange) {
+                        "${encoding.name}: Mismatch range at $readFrom"
                     }
                 }
             }
         }
     }
 
-    @Test
-    fun readMultibyteUnicode() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun readMultibyteUnicode(encoding: TestFileEncoding) {
         val testCases = listOf(
             "一我",
             "一我a",
@@ -95,13 +105,13 @@ class GiantFileReaderTest {
             "abc一abc我abc",
         )
         testCases.forEach { testCase ->
-            val fullBytes = testCase.toByteArray(Charsets.UTF_8)
-            createTestFile(testCase) { file ->
+            val fullBytes = encoding.bytes(testCase)
+            createTestFile(testCase, encoding) { file ->
                 GiantFileReader(file.absolutePath, 10240).use { reader ->
                     listOf(10000, fullBytes.size).forEach { readLength ->
                         val (readContent, readBytesRange) = reader.readString(0L, readLength)
-                        assertEquals(testCase, readContent)
-                        assertEquals(0L ..< fullBytes.size, readBytesRange)
+                        assertEquals(testCase, readContent, encoding.name)
+                        assertEquals(encoding.contentStartBytePosition ..< fullBytes.size.toLong(), readBytesRange, encoding.name)
                     }
                 }
             }
@@ -463,10 +473,56 @@ class GiantFileReaderTest {
     }
 }
 
-fun createTestFile(content: String, testBlock: (File) -> Unit) {
+enum class TestFileEncoding(
+    val charset: Charset,
+    val textEncoding: TextEncoding,
+    val bom: ByteArray = byteArrayOf(),
+) {
+    Utf8(StandardCharsets.UTF_8, TextEncoding.Auto),
+    Utf8WithBom(
+        StandardCharsets.UTF_8,
+        TextEncoding.Auto,
+        byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()),
+    ),
+    Utf16LE(
+        StandardCharsets.UTF_16LE,
+        TextEncoding.Auto,
+        byteArrayOf(0xFF.toByte(), 0xFE.toByte()),
+    ),
+    Utf16BE(
+        StandardCharsets.UTF_16BE,
+        TextEncoding.Auto,
+        byteArrayOf(0xFE.toByte(), 0xFF.toByte()),
+    ),
+    ;
+
+    val contentStartBytePosition: Long get() = bom.size.toLong()
+
+    fun bytes(content: String): ByteArray = bom + content.toByteArray(charset)
+
+    fun bytePosition(content: String, charPosition: Int): Long {
+        return contentStartBytePosition + content.substring(0..<charPosition).toByteArray(charset).size
+    }
+
+    fun byteRange(content: String, charRange: IntRange): LongRange {
+        return bytePosition(content, charRange.first)..<bytePosition(content, charRange.last + 1)
+    }
+}
+
+fun createGiantFileReader(
+    file: File,
+    encoding: TestFileEncoding,
+    blockSize: Int = 1 * 1024 * 1024,
+): GiantFileReader = GiantFileReader(file.absolutePath, blockSize, textEncoding = encoding.textEncoding)
+
+fun createTestFile(
+    content: String,
+    encoding: TestFileEncoding = TestFileEncoding.Utf8,
+    testBlock: (File) -> Unit,
+) {
     val file = File("build/test", "${UUID.randomUUID()}.txt")
     file.parentFile.mkdirs()
-    file.writeText(content, Charsets.UTF_8)
+    file.writeBytes(encoding.bytes(content))
     try {
         testBlock(file)
     } finally {

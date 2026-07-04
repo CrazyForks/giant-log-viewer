@@ -45,6 +45,7 @@ kotlin {
         val jvmTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation("org.junit.jupiter:junit-jupiter-params:5.10.3")
             }
         }
     }

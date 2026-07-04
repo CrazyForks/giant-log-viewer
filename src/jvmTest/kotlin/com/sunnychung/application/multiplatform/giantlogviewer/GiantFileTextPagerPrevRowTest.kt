@@ -6,14 +6,16 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextP
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.util.FixedWidthCharMeasurer
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import kotlin.random.Random
-import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class GiantFileTextPagerPrevRowTest {
 
-    @Test
-    fun singleLineLongText() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun singleLineLongText(encoding: TestFileEncoding) {
         val fileLength = 10000
         val random = Random(34567)
         val fileContent = (0..<fileLength).joinToString("") {
@@ -22,11 +24,12 @@ class GiantFileTextPagerPrevRowTest {
                 else -> ('a'.code + (r - 10)).toChar().toString()
             }
         }
-        testNextRowThenPrevRow(fileContent)
+        testNextRowThenPrevRow(fileContent, encoding)
     }
 
-    @Test
-    fun multipleLines() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun multipleLines(encoding: TestFileEncoding) {
         val fileLength = 100000
         val random = Random(34568)
         val fileContent = (0..< fileLength).joinToString("") {
@@ -44,29 +47,33 @@ class GiantFileTextPagerPrevRowTest {
                 else -> ('a'.code + (r - 10)).toChar().toString()
             }
         }
-        testNextRowThenPrevRow(fileContent)
+        testNextRowThenPrevRow(fileContent, encoding)
     }
 
-    @Test
-    fun shortLine() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun shortLine(encoding: TestFileEncoding) {
         val fileContent = "ab"
-        testNextRowThenPrevRow(fileContent)
+        testNextRowThenPrevRow(fileContent, encoding)
     }
 
-    @Test
-    fun lastLineIsEmpty() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun lastLineIsEmpty(encoding: TestFileEncoding) {
         val fileContent = "abc\n"
-        testNextRowThenPrevRow(fileContent)
+        testNextRowThenPrevRow(fileContent, encoding)
     }
 
-    @Test
-    fun emptyFile() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun emptyFile(encoding: TestFileEncoding) {
         val fileContent = ""
-        testNextRowThenPrevRow(fileContent)
+        testNextRowThenPrevRow(fileContent, encoding)
     }
 
-    @Test
-    fun multipleBlocks() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun multipleBlocks(encoding: TestFileEncoding) {
         val fileLength = 1000000
         val random = Random(34569)
         val fileContent = (0..< fileLength).joinToString("") {
@@ -84,11 +91,12 @@ class GiantFileTextPagerPrevRowTest {
                 else -> ('a'.code + (r - 10)).toChar().toString()
             }
         }
-        testNextRowThenPrevRow(fileContent, blockSize = 2048)
+        testNextRowThenPrevRow(fileContent, encoding, blockSize = 2048)
     }
 
-    @Test
-    fun unicodeSimple() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicodeSimple(encoding: TestFileEncoding) {
         val lines = listOf(
             "你好呀",
             "啲Emoji好q麻煩",
@@ -98,11 +106,12 @@ class GiantFileTextPagerPrevRowTest {
             "🍙",
         )
         val fileContent = lines.joinToString("\n")
-        testNextRowThenPrevRow(fileContent)
+        testNextRowThenPrevRow(fileContent, encoding)
     }
 
-    @Test
-    fun unicodeAcrossRowBreaks() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicodeAcrossRowBreaks(encoding: TestFileEncoding) {
         val lines = listOf(
             "喂你好",
             "啲Emoji好q麻煩",
@@ -119,11 +128,12 @@ class GiantFileTextPagerPrevRowTest {
             }
         }
         val fileContent = multipliedLines.joinToString("\n")
-        testNextRowThenPrevRow(fileContent)
+        testNextRowThenPrevRow(fileContent, encoding)
     }
 
-    @Test
-    fun unicodeMultiBlocks() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun unicodeMultiBlocks(encoding: TestFileEncoding) {
         val random = Random(45678)
         val charset = "零一二三四五六七八九ABCDabc".map { it.toString() } + listOf("😄", "😄", "😇", "🤣", "🤯", "🤬", "🫡", "🫠", "😵")
         val fileContent = (0 ..< 400000).joinToString("") {
@@ -138,12 +148,16 @@ class GiantFileTextPagerPrevRowTest {
 
             charset[random.nextInt(0, charset.size)]
         }
-        testNextRowThenPrevRow(fileContent = fileContent, blockSize = 4096)
+        testNextRowThenPrevRow(fileContent = fileContent, encoding = encoding, blockSize = 4096)
     }
 }
 
-private fun testNextRowThenPrevRow(fileContent: String, blockSize: Int = 1 * 1024 * 1024) {
-    createTestFile(fileContent) { file ->
+private fun testNextRowThenPrevRow(
+    fileContent: String,
+    encoding: TestFileEncoding,
+    blockSize: Int = 1 * 1024 * 1024,
+) {
+    createTestFile(fileContent, encoding) { file ->
         val fileLength = file.length()
         val fileReader = GiantFileReader(file.absolutePath, blockSize)
         val pager = CoroutineGiantFileTextPager(fileReader, MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(16f)))
@@ -180,7 +194,7 @@ private fun testNextRowThenPrevRow(fileContent: String, blockSize: Int = 1 * 102
         repeat(2) {
             pager.moveToPrevRow()
 //            assertEquals(0L, pager.viewportStartCharPosition)
-            assertEquals(0L, pager.viewportStartBytePosition)
+            assertEquals(encoding.contentStartBytePosition, pager.viewportStartBytePosition)
         }
     }
 }
