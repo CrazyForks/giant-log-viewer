@@ -8,7 +8,7 @@ The public navigation/search positions are physical byte offsets in the file, no
 
 ## Encoding Model
 
-`GiantFileReader` resolves a `TextEncoding` once per reader. `Auto` reads only the first few bytes:
+`GiantFileReader` resolves a `TextEncoding` once per reader. `Auto` probes `TEXT_ENCODING_PROBE_BYTES` bytes from the physical start of the file:
 
 - UTF-8 BOM: `EF BB BF`
 - UTF-16LE BOM: `FF FE`
@@ -19,7 +19,13 @@ UTF-16 files without a BOM require explicit reader construction with `TextEncodi
 
 The reader delegates text decoding to `TextFileCodec`. UTF-8 and UTF-16 live in separate codec implementations so future encodings can be added without putting byte-boundary rules back into `GiantFileReader`.
 
-UTF-8 reads expand to valid 1-4 byte character boundaries. This includes emoji and other non-BMP characters encoded as 4 bytes. UTF-16 reads align to 2-byte code units and expand around surrogate pairs so high/low surrogate pairs are not split.
+UTF-8 reads expand to valid 1-4 byte character boundaries. This includes emoji and other non-BMP characters encoded as 4 bytes. The UTF-8 codec may still advance by `KOTLIN_CHARS_PER_SURROGATE_PAIR` while walking a Kotlin `String`, because JVM/Kotlin strings are indexed by UTF-16 code units even when the file encoding is UTF-8.
+
+UTF-16 reads align to `UTF16_CODE_UNIT_BYTES` boundaries and expand around surrogate pairs so high/low surrogate pairs are not split. `encodedLength()` for UTF-16 is therefore `text.length * UTF16_CODE_UNIT_BYTES`.
+
+Encoding constants are named in `TextEncodingConstants.kt`. Keep byte-size constants (`UTF16_CODE_UNIT_BYTES`, `UTF8_MAX_BYTES_PER_CODE_POINT`) separate from in-memory string-index constants (`KOTLIN_CHARS_PER_SURROGATE_PAIR`).
+
+`GiantFileReader` requires `blockSize >= MIN_BLOCK_SIZE`, currently the same as the BOM probe size. This keeps block/cache assumptions out of the "tiny block" edge case while preserving bounded random access for realistic block sizes.
 
 Invalid byte sequences are currently left to the JVM charset decoder replacement behavior. Do not add silent whole-file validation in this path.
 
@@ -36,6 +42,8 @@ There is intentionally no global line index, no whole-file character index, and 
 
 Avoid `substring(...).toByteArray(...)` for byte-position math in pager code. That allocates and bakes in an encoding assumption. Use `DecodedTextWindow` or `GiantFileReader.encodedLength()`.
 
+Row counts and row-movement counts are `Long`. Do not convert logical row counts to `Int` just because a large file can have more rows than fit in `Int`. Convert to `Int` only at unavoidable Kotlin/JVM collection API boundaries such as `take(n)` or `ArrayList(capacity)`, and only after bounding the local decoded window.
+
 ## Pager Constraints
 
 The pager must handle both extremes:
@@ -49,17 +57,21 @@ Backward navigation is the hardest case because soft-wrap row starts depend on p
 
 ## Search Constraints
 
-Regex search runs over bounded overlapping windows. Matches should be consumed as sequences where possible. Match byte ranges must be computed through the decoded window offset resolver so UTF-8 multibyte characters, UTF-16 code units, and surrogate pairs return correct physical byte ranges.
+Regex search runs over bounded overlapping decoded windows. Matches should be consumed as sequences where possible. Match byte ranges must be computed through the decoded window offset resolver so UTF-8 multibyte characters, UTF-16 code units, and surrogate pairs return correct physical byte ranges.
 
-Regexes with a bounded maximum match length are searched exactly. Literal patterns, character classes, and bounded quantifiers such as `{1000}` or `{2,8}` are valid. Unbounded or complex patterns such as `.*`, `.+`, and `{10,}` are rejected by default because they cannot be searched exactly with bounded memory and finite overlap.
+Regex search starting positions are not limited to the initial local window; forward and backward search continue window by window until a match is found or EOF/BOF is reached. The size of each search window is bounded: roughly `SEARCH_WINDOW_PAGE_COUNT` pages from the current viewport-derived byte window, capped by `MAX_REGEX_SEARCH_WINDOW_BYTES` (currently 4 MiB).
 
-Callers may pass the search bypass flag after warning the user. Bypassed regex search still uses bounded memory and a capped search window of 4 MiB, so it can miss matches whose span exceeds that window. This is intended for UX flows where the user explicitly accepts approximate bounded search for complex regexes.
+Unbounded and very large bounded regexes are allowed, but they only see the current local search window. For example, if a page is about 10 KiB, `.*` can match only within roughly four pages, not across the whole file. This restores the pre-branch behavior: the starting point can move arbitrarily through the file, while an individual regex match cannot grow without bound.
+
+The overlap between search windows is a heuristic based on `encodedLength(searchPredicate.pattern)`, with a minimum of one encoded character. This is enough for ordinary literal-ish patterns and keeps memory bounded, but it is not a streaming regex engine. A match whose required span exceeds the local window can be missed.
+
+The `isBypass` parameter remains on the search APIs for compatibility, but current search behavior does not branch on it. Do not reintroduce parser-based rejection of complex regexes unless the UX/API contract changes again.
 
 ## Known Pain Points
 
 - Backward soft-wrap reconstruction can require rereading earlier chunks of a long physical line.
 - Previous-row positions in extremely long no-newline regions trade perfect reconstruction for bounded memory and bounded local I/O once the exact reconstruction cap is exceeded.
-- Regex matches across window boundaries require overlap and can still be tricky for complex patterns. Bypass mode is bounded and approximate; keep the default rejection in place unless a true streaming regex engine is introduced.
+- Regex matches across window boundaries require overlap and can still be tricky for complex patterns. Current search is bounded and approximate for matches larger than the local search window; a true streaming regex engine would be needed for exact unbounded regex matching.
 - Variable-width text layout makes it harder to compute row starts without inspecting text.
 - Invalid or mixed encodings are decoded with replacement characters; the viewer does not validate entire files.
 - Tests often use physical byte offsets. For UTF-16 files, remember to include BOM bytes in expected positions.
@@ -72,6 +84,6 @@ To add another encoding:
 2. Extend BOM or explicit encoding resolution in `GiantFileReader`.
 3. Add a `TextFileCodec` implementation with boundary-safe `readText()` and `encodedLength()`.
 4. Return a `DecodedTextWindow` whose `bytePositionAtCharIndex()` does not allocate a per-character table.
-5. Add reader tests for start/end boundary alignment, block-boundary splits, and pager/search byte positions.
+5. Add reader tests for start/end boundary alignment, block-boundary splits, BOM/no-BOM behavior, and pager/search byte positions.
 
 Keep the invariant that byte positions exposed outside the reader are physical file offsets.
