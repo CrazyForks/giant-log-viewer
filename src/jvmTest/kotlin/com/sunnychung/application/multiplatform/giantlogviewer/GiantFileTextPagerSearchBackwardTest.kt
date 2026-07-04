@@ -92,6 +92,15 @@ class GiantFileTextPagerSearchBackwardTest {
             }
         }
         verifySearchForEncoding(encoding, fileContent, searchPattern, blockSize)
+//        verifySearchForEncoding(encoding, fileContent, searchPattern, blockSize) { file ->
+//            representativeBackwardSearchPositions(
+//                fileContent = fileContent,
+//                encoding = encoding,
+//                searchRegex = searchPattern.toRegex(),
+//                fileSize = file.length(),
+//                blockSize = blockSize,
+//            )
+//        }
     }
 
     @ParameterizedTest
@@ -223,7 +232,7 @@ private fun verifySearchForEncoding(
     fileContent: String,
     searchPattern: String,
     blockSize: Int = 1 * 1024 * 1024,
-    searchRange: (File) -> LongProgression? = { null },
+    searchRange: (File) -> Iterable<Long>? = { null },
 ) {
     createTestFile(fileContent, encoding) { file ->
         verifySearch(file, encoding, fileContent, searchPattern, blockSize, searchRange(file))
@@ -236,7 +245,7 @@ private fun verifySearch(
     fileContent: String,
     searchPattern: String,
     blockSize: Int = 1 * 1024 * 1024,
-    searchRange: LongProgression? = null,
+    searchRange: Iterable<Long>? = null,
 ) {
     val fileReader = GiantFileReader(file.absolutePath, blockSize)
     val pager = CoroutineGiantFileTextPager(
@@ -247,9 +256,10 @@ private fun verifySearch(
     pager.viewport = Viewport(width = 16 * 7, height = 12 * 5, density = 1f)
     val fileSize = file.length()
     val searchRegex = searchPattern.toRegex()
+    val matchRanges = matchByteRanges(fileContent, encoding, searchRegex)
     (searchRange ?: (fileSize downTo 0)).forEach { i ->
         assertEquals(
-            lastBytePositionOf(fileContent, encoding, searchRegex, i),
+            lastBytePositionOf(matchRanges, i),
             pager.searchBackward(i, searchRegex).also {
                 println("search starts at $i found $it")
             },
@@ -258,10 +268,78 @@ private fun verifySearch(
     }
 }
 
-private fun lastBytePositionOf(content: String, encoding: TestFileEncoding, regex: Regex, start: Long): LongRange {
-    return regex.findAll(content).findLast {
-        encoding.bytePosition(content, it.range.start) < start
-    }?.let {
-        encoding.byteRange(content, it.range)
-    } ?: GiantFileTextPager.NOT_FOUND
+private fun matchByteRanges(content: String, encoding: TestFileEncoding, regex: Regex): List<LongRange> {
+    return regex.findAll(content)
+        .map { encoding.byteRange(content, it.range) }
+        .toList()
+}
+
+private fun lastBytePositionOf(matchRanges: List<LongRange>, start: Long): LongRange {
+    var low = 0
+    var high = matchRanges.lastIndex
+    var result = -1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        if (matchRanges[mid].start < start) {
+            result = mid
+            low = mid + 1
+        } else {
+            high = mid - 1
+        }
+    }
+    return matchRanges.getOrNull(result) ?: GiantFileTextPager.NOT_FOUND
+}
+
+private fun representativeBackwardSearchPositions(
+    fileContent: String,
+    encoding: TestFileEncoding,
+    searchRegex: Regex,
+    fileSize: Long,
+    blockSize: Int,
+): List<Long> {
+    val positions = sortedSetOf<Long>()
+
+    fun add(position: Long) {
+        if (position in 0L..fileSize) {
+            positions += position
+        }
+    }
+
+    listOf(
+        0L,
+        encoding.contentStartBytePosition,
+        fileSize,
+        fileSize / 4,
+        fileSize / 2,
+        fileSize * 3 / 4,
+    ).forEach(::add)
+
+    (0L..fileSize step blockSize.toLong()).toList().sampleEvenly(32).forEach { blockStart ->
+        (-4L..4L).forEach { delta -> add(blockStart + delta) }
+    }
+
+    matchByteRanges(fileContent, encoding, searchRegex).sampleEvenly(64).forEach { range ->
+        listOf(
+            range.start - 2,
+            range.start - 1,
+            range.start,
+            range.start + 1,
+            range.start + 2,
+            range.endInclusive,
+            range.endInclusive + 1,
+            range.endInclusive + 2,
+        ).forEach(::add)
+    }
+
+    return positions.toList().asReversed()
+}
+
+private fun <T> List<T>.sampleEvenly(maxSamples: Int): List<T> {
+    require(maxSamples > 0)
+    if (size <= maxSamples) {
+        return this
+    }
+    return (0..<maxSamples).map { index ->
+        this[(index.toLong() * lastIndex / (maxSamples - 1L)).toInt()]
+    }.distinct()
 }
