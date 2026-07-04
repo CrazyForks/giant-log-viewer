@@ -354,7 +354,7 @@ fun GiantTextViewer(
                         }
 
                         accumulateXOffset += charWidth
-                        bytePosition += charAnnotated.string().toByteArray(Charsets.UTF_8).size
+                        bytePosition += filePager.encodedLengthOfText(charAnnotated.string())
                     }
                 }
 //                }
@@ -432,7 +432,7 @@ private fun findBytePositionByCoordinatePx(filePager: GiantFileTextPager, point:
     // y-axis
     val rowFromTopLeft = floor(point.y / filePager.rowHeight()).toInt()
     if (rowFromTopLeft > rowTexts.lastIndex) {
-        return startBytePositions.last() + rowTexts.last().string().toByteArray(Charsets.UTF_8).size
+        return startBytePositions.last() + filePager.encodedLengthOfText(rowTexts.last().string())
     }
     val startBytePosition = startBytePositions[rowFromTopLeft]
 
@@ -453,7 +453,7 @@ private fun findBytePositionByCoordinatePx(filePager: GiantFileTextPager, point:
             return startBytePosition + accumulatedBytes
         }
 
-        accumulatedBytes += fullChar.string().toByteArray(Charsets.UTF_8).size
+        accumulatedBytes += filePager.encodedLengthOfText(fullChar.string())
         accumulatedPx += charWidth
     }
     // reached end of row

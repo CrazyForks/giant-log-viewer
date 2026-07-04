@@ -2,14 +2,19 @@ package com.sunnychung.application.multiplatform.giantlogviewer.io
 
 import java.io.ByteArrayOutputStream
 import java.io.RandomAccessFile
-import java.util.LinkedList
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
 private const val BLOCK_CURRENT = 1
 
-class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024, initialFileLength: Long = -1) : AutoCloseable {
+class GiantFileReader(
+    val filePath: String,
+    val blockSize: Int = 1 * 1024 * 1024,
+    initialFileLength: Long = -1,
+    val textEncoding: TextEncoding = TextEncoding.Auto,
+) : AutoCloseable {
     private val file = RandomAccessFile(filePath, "r")
 
     var fileLength: Long = initialFileLength.takeIf { it > 0 } ?:
@@ -18,6 +23,15 @@ class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024
     private val blockCacheLock = ReentrantReadWriteLock()
     private val blockCache: Array<FileBlock?> = arrayOfNulls(4)
     private var bytePositions: LongRange = -1L .. -2L
+    private val codec: TextFileCodec by lazy {
+        createCodec(resolveTextEncoding())
+    }
+
+    val resolvedTextEncoding: ResolvedTextEncoding
+        get() = codec.encoding
+
+    val contentStartBytePosition: Long
+        get() = resolvedTextEncoding.contentStartBytePosition
 
     override fun close() {
         file.close()
@@ -119,100 +133,142 @@ class GiantFileReader(val filePath: String, val blockSize: Int = 1 * 1024 * 1024
         return blockCache[positionInBlock.blockIndex]?.bytes?.get(positionInBlock.bytePosition)
     }
 
-    internal fun readAsByteArrayOutputStream(startBytePosition: Long, length: Int): Pair<ByteArrayOutputStream2, LongRange> {
-        // TODO optimize
-        // TODO support emoji sequences
-        // TODO refactor as a UTF-8 decoder
-
-        if (length > blockSize) {
-            throw IllegalArgumentException("`length` $length should be less than or equal a block size")
+    internal fun readRawBytes(startBytePosition: Long, length: Int): Pair<ByteArray, LongRange> {
+        if (length <= 0) {
+            return ByteArray(0) to (startBytePosition ..< startBytePosition)
         }
 
-        // Below works for ASCII or UTF-8 files
+        val fileSize = fileLength
+        val start = startBytePosition.coerceIn(0L, fileSize)
+        val endExclusive = (start + length).coerceAtMost(fileSize)
+        if (endExclusive <= start) {
+            return ByteArray(0) to (start ..< start)
+        }
 
-//        var readLength = length
-        val bb = ByteArrayOutputStream2(length)
-        var start: Long = startBytePosition
-        var end: Long = -2L
-
-        with (Utf8Decoder) {
-            blockCacheLock.read {
-                loadBytePosition(startBytePosition)
-
-                val block = blockCache[BLOCK_CURRENT]!!
-                val currentBlockReadStart: Int = (startBytePosition - block.bytePositions.start).toInt()
-
-                if (startBytePosition > block.bytePositions.endInclusive) {
-                    return bb to (startBytePosition .. -2)
-                }
-
-                if (block.bytes[currentBlockReadStart].isContinuationByte()) {
-                    val lookBehindBytes = LinkedList<Byte>()
-                    var prevBytePos = PositionInBlock(BLOCK_CURRENT, currentBlockReadStart) - 1
-                    while (prevBytePos != null) {
-                        val b = read(prevBytePos)!!
-                        lookBehindBytes.addFirst(b)
-                        --start
-                        if (lookBehindBytes.size < 3 && b.isContinuationByte()) { // a UTF-8 char has a maximum length of 4 bytes
-                            prevBytePos -= 1
-                        } else {
-                            break
-                        }
-                    }
-                    bb.write(lookBehindBytes.toByteArray())
-                }
-                val currentBlockReadLength: Int = length.coerceAtMost((block.bytePositions.endExclusive - startBytePosition).toInt())
-                var remainLength: Int = length
-                bb.write(block.bytes, currentBlockReadStart, currentBlockReadLength)
-                end = block.bytePositions.start + currentBlockReadStart + currentBlockReadLength
-                var lastBlockPos: PositionInBlock? = PositionInBlock(BLOCK_CURRENT, currentBlockReadStart + currentBlockReadLength - 1)
-                remainLength -= currentBlockReadLength
-                if (remainLength > 0 && blockCache[BLOCK_CURRENT + 1] != null) {
-                    val nextBlock = blockCache[BLOCK_CURRENT + 1]!!
-                    var nextReadLength = remainLength.coerceAtMost(nextBlock.bytes.size)
-                    bb.write(nextBlock.bytes, 0, nextReadLength)
-                    end += nextReadLength
-                    lastBlockPos = lastBlockPos?.plus(nextReadLength)
-                }
-                var headerByteOffset = -1
-                while (bb.readFromLastOrNull(headerByteOffset)?.isContinuationByte() == true && headerByteOffset > -3) {
-                    --headerByteOffset
-                }
-                if (bb.readFromLastOrNull(headerByteOffset)?.isHeaderOfByteSequence() == true) {
-                    val byteSequenceLength = bb.readFromLastOrNull(headerByteOffset)?.sequenceLengthRepresentedByThisHeaderByte() ?: 1
-                    remainLength = byteSequenceLength - (- headerByteOffset)
-                    (0 ..< remainLength).forEach {
-                        lastBlockPos = lastBlockPos?.plus(1)
-                        val b = read(lastBlockPos)
-                        if (b != null) {
-                            bb.write(b.toInt())
-                            ++end
-                        }
-                    }
-                }
+        val out = ByteArrayOutputStream((endExclusive - start).toInt())
+        var current = start
+        while (current < endExclusive) {
+            loadBytePosition(current)
+            val block = blockCacheLock.read { blockCache[BLOCK_CURRENT] }
+                ?: throw IllegalStateException("Cannot load file block for byte position $current")
+            val blockReadStart = (current - block.bytePositions.start).toInt()
+            val blockReadLength = (endExclusive - current)
+                .coerceAtMost(block.bytes.size - blockReadStart.toLong())
+                .toInt()
+            if (blockReadLength <= 0) {
+                break
             }
+            out.write(block.bytes, blockReadStart, blockReadLength)
+            current += blockReadLength
         }
+        return out.toByteArray() to (start ..< current)
+    }
 
-        return bb to (start ..< end)
+    internal fun readAsByteArrayOutputStream(startBytePosition: Long, length: Int): Pair<ByteArrayOutputStream2, LongRange> {
+        val window = readText(startBytePosition, length)
+        val bytes = window.text.toByteArray(resolvedTextEncoding.charset)
+        val out = ByteArrayOutputStream2(bytes.size)
+        out.write(bytes)
+        return out to window.byteRange
     }
 
     /**
-     * Given `length` should be less than or equal a block size.
-     *
      * It is not guaranteed that exactly `length` bytes would be read.
      *
      * @param startBytePosition 0-based, in bytes
      * @param length in bytes
      * @return pair of decoded string and the range of absolute byte positions of the decoded string
      */
+    fun readText(startBytePosition: Long, length: Int): DecodedTextWindow {
+        return codec.readText(startBytePosition, length, fileLength, ::readRawBytes)
+    }
+
     fun readString(startBytePosition: Long, length: Int): Pair<String, LongRange> {
-        val (bb, byteRange) = readAsByteArrayOutputStream(startBytePosition, length)
-        return bb.toString(Charsets.UTF_8) to byteRange
+        val window = readText(startBytePosition, length)
+        return window.text to window.byteRange
     }
 
     fun readStringBytes(startBytePosition: Long, length: Int): Pair<ByteArray, LongRange> {
-        val (bb, byteRange) = readAsByteArrayOutputStream(startBytePosition, length)
-        return bb.toByteArray() to byteRange
+        val window = readText(startBytePosition, length)
+        return window.text.toByteArray(resolvedTextEncoding.charset) to window.byteRange
+    }
+
+    fun encodedLength(text: CharSequence): Long = codec.encodedLength(text)
+
+    private fun resolveTextEncoding(): ResolvedTextEncoding {
+        val header = readRawBytes(0L, minOf(4, blockSize)).first
+        return when {
+            textEncoding == TextEncoding.Utf8 -> utf8Encoding(bomLength = if (header.hasUtf8Bom()) 3 else 0)
+            textEncoding == TextEncoding.Utf16LE -> utf16LEEncoding(bomLength = if (header.hasUtf16LEBom()) 2 else 0)
+            textEncoding == TextEncoding.Utf16BE -> utf16BEEncoding(bomLength = if (header.hasUtf16BEBom()) 2 else 0)
+            header.hasUtf8Bom() -> utf8Encoding(bomLength = 3)
+            header.hasUtf16LEBom() -> utf16LEEncoding(bomLength = 2)
+            header.hasUtf16BEBom() -> utf16BEEncoding(bomLength = 2)
+            else -> utf8Encoding(bomLength = 0)
+        }
+    }
+
+    private fun createCodec(encoding: ResolvedTextEncoding): TextFileCodec {
+        return when (encoding.kind) {
+            TextEncodingKind.Utf8 -> Utf8TextFileCodec(encoding)
+            TextEncodingKind.Utf16LE,
+            TextEncodingKind.Utf16BE -> Utf16TextFileCodec(encoding)
+        }
+    }
+
+    private fun utf8Encoding(bomLength: Int): ResolvedTextEncoding {
+        return ResolvedTextEncoding(
+            kind = TextEncodingKind.Utf8,
+            charset = StandardCharsets.UTF_8,
+            bomLength = bomLength,
+            contentStartBytePosition = bomLength.toLong(),
+            lookBehindBytes = 3,
+            lookAheadBytes = 3,
+            maxBytesPerCharacter = 4,
+        )
+    }
+
+    private fun utf16LEEncoding(bomLength: Int): ResolvedTextEncoding {
+        return ResolvedTextEncoding(
+            kind = TextEncodingKind.Utf16LE,
+            charset = StandardCharsets.UTF_16LE,
+            bomLength = bomLength,
+            contentStartBytePosition = bomLength.toLong(),
+            lookBehindBytes = 4,
+            lookAheadBytes = 4,
+            maxBytesPerCharacter = 4,
+        )
+    }
+
+    private fun utf16BEEncoding(bomLength: Int): ResolvedTextEncoding {
+        return ResolvedTextEncoding(
+            kind = TextEncodingKind.Utf16BE,
+            charset = StandardCharsets.UTF_16BE,
+            bomLength = bomLength,
+            contentStartBytePosition = bomLength.toLong(),
+            lookBehindBytes = 4,
+            lookAheadBytes = 4,
+            maxBytesPerCharacter = 4,
+        )
+    }
+
+    private fun ByteArray.hasUtf8Bom(): Boolean {
+        return size >= 3 &&
+            (this[0].toInt() and 0xFF) == 0xEF &&
+            (this[1].toInt() and 0xFF) == 0xBB &&
+            (this[2].toInt() and 0xFF) == 0xBF
+    }
+
+    private fun ByteArray.hasUtf16LEBom(): Boolean {
+        return size >= 2 &&
+            (this[0].toInt() and 0xFF) == 0xFF &&
+            (this[1].toInt() and 0xFF) == 0xFE
+    }
+
+    private fun ByteArray.hasUtf16BEBom(): Boolean {
+        return size >= 2 &&
+            (this[0].toInt() and 0xFF) == 0xFE &&
+            (this[1].toInt() and 0xFF) == 0xFF
     }
 
     private class FileBlock(val pos: FileBlockPosition, val bytes: ByteArray, val bytePositions: LongRange)
@@ -247,15 +303,3 @@ enum class FileAnchor {
 data class FileRelativePosition(val anchor: FileAnchor, val position: Long)
 
 typealias FileBlockPosition = FileRelativePosition
-
-private object Utf8Decoder {
-    fun Byte.isContinuationByte(): Boolean = toUByte() in 0x80u .. 0xBFu
-    fun Byte.isHeaderOfByteSequence(): Boolean = toUByte() in 0xC2u .. 0xF4u
-
-    fun Byte.sequenceLengthRepresentedByThisHeaderByte(): Int = when (toUByte()) {
-        in 0xC2u .. 0xDFu -> 2
-        in 0xE0u .. 0xEFu -> 3
-        in 0xF0u .. 0xF4u -> 4
-        else -> 1 // invalid header byte -> let Java transforms it as an error byte
-    }
-}

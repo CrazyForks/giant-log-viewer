@@ -1,8 +1,10 @@
 package com.sunnychung.application.multiplatform.giantlogviewer
 
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
+import com.sunnychung.application.multiplatform.giantlogviewer.io.TextEncoding
 import org.junit.jupiter.api.Assertions.assertEquals
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.Test
@@ -102,6 +104,130 @@ class GiantFileReaderTest {
                         assertEquals(0L ..< fullBytes.size, readBytesRange)
                     }
                 }
+            }
+        }
+    }
+
+    @Test
+    fun readUtf8FileWithBom() {
+        val content = "A😄B\n下一行"
+        val bytes = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) +
+            content.toByteArray(StandardCharsets.UTF_8)
+        createTestFile(bytes) { file ->
+            GiantFileReader(file.absolutePath, bytes.size).use { reader ->
+                val (readContent, readBytesRange) = reader.readString(0L, bytes.size)
+                assertEquals(content, readContent)
+                assertEquals(3L..<bytes.size.toLong(), readBytesRange)
+
+                val (emoji, emojiRange) = reader.readString(4L, 1)
+                assertEquals("😄", emoji)
+                assertEquals(4L..<8L, emojiRange)
+            }
+        }
+    }
+
+    @Test
+    fun readUtf16LittleEndianFileWithBom() {
+        val content = "A😄B\n下一行"
+        val bytes = byteArrayOf(0xFF.toByte(), 0xFE.toByte()) +
+            content.toByteArray(StandardCharsets.UTF_16LE)
+        createTestFile(bytes) { file ->
+            GiantFileReader(file.absolutePath, bytes.size).use { reader ->
+                val (readContent, readBytesRange) = reader.readString(0L, bytes.size)
+                assertEquals(content, readContent)
+                assertEquals(2L..<bytes.size.toLong(), readBytesRange)
+
+                val (emoji, emojiRange) = reader.readString(6L, 1)
+                assertEquals("😄", emoji)
+                assertEquals(4L..<8L, emojiRange)
+            }
+        }
+    }
+
+    @Test
+    fun readUtf16BigEndianFileWithBom() {
+        val content = "A😄B\n下一行"
+        val bytes = byteArrayOf(0xFE.toByte(), 0xFF.toByte()) +
+            content.toByteArray(StandardCharsets.UTF_16BE)
+        createTestFile(bytes) { file ->
+            GiantFileReader(file.absolutePath, bytes.size).use { reader ->
+                val (readContent, readBytesRange) = reader.readString(0L, bytes.size)
+                assertEquals(content, readContent)
+                assertEquals(2L..<bytes.size.toLong(), readBytesRange)
+
+                val (emoji, emojiRange) = reader.readString(7L, 1)
+                assertEquals("😄", emoji)
+                assertEquals(4L..<8L, emojiRange)
+            }
+        }
+    }
+
+    @Test
+    fun readUtf16LittleEndianFileWithoutBomWithExplicitEncoding() {
+        val content = "A😄B\n下一行"
+        val bytes = content.toByteArray(StandardCharsets.UTF_16LE)
+        createTestFile(bytes) { file ->
+            GiantFileReader(file.absolutePath, bytes.size, textEncoding = TextEncoding.Utf16LE).use { reader ->
+                val (readContent, readBytesRange) = reader.readString(0L, bytes.size)
+                assertEquals(content, readContent)
+                assertEquals(0L..<bytes.size.toLong(), readBytesRange)
+
+                val (emoji, emojiRange) = reader.readString(5L, 1)
+                assertEquals("😄", emoji)
+                assertEquals(2L..<6L, emojiRange)
+            }
+        }
+    }
+
+    @Test
+    fun readUtf16BigEndianFileWithoutBomWithExplicitEncoding() {
+        val content = "A😄B\n下一行"
+        val bytes = content.toByteArray(StandardCharsets.UTF_16BE)
+        createTestFile(bytes) { file ->
+            GiantFileReader(file.absolutePath, bytes.size, textEncoding = TextEncoding.Utf16BE).use { reader ->
+                val (readContent, readBytesRange) = reader.readString(0L, bytes.size)
+                assertEquals(content, readContent)
+                assertEquals(0L..<bytes.size.toLong(), readBytesRange)
+
+                val (emoji, emojiRange) = reader.readString(4L, 1)
+                assertEquals("😄", emoji)
+                assertEquals(2L..<6L, emojiRange)
+            }
+        }
+    }
+
+    @Test
+    fun readUtf16LittleEndianSurrogatePairSplitAcrossBlocks() {
+        val content = "123😄XYZ"
+        val bytes = byteArrayOf(0xFF.toByte(), 0xFE.toByte()) +
+            content.toByteArray(StandardCharsets.UTF_16LE)
+        createTestFile(bytes) { file ->
+            GiantFileReader(file.absolutePath, 10).use { reader ->
+                val (emojiFromHighSurrogate, highSurrogateRange) = reader.readString(8L, 1)
+                assertEquals("😄", emojiFromHighSurrogate)
+                assertEquals(8L..<12L, highSurrogateRange)
+
+                val (emojiFromLowSurrogate, lowSurrogateRange) = reader.readString(10L, 1)
+                assertEquals("😄", emojiFromLowSurrogate)
+                assertEquals(8L..<12L, lowSurrogateRange)
+            }
+        }
+    }
+
+    @Test
+    fun readUtf16BigEndianSurrogatePairSplitAcrossBlocks() {
+        val content = "123😄XYZ"
+        val bytes = byteArrayOf(0xFE.toByte(), 0xFF.toByte()) +
+            content.toByteArray(StandardCharsets.UTF_16BE)
+        createTestFile(bytes) { file ->
+            GiantFileReader(file.absolutePath, 10).use { reader ->
+                val (emojiFromHighSurrogate, highSurrogateRange) = reader.readString(8L, 1)
+                assertEquals("😄", emojiFromHighSurrogate)
+                assertEquals(8L..<12L, highSurrogateRange)
+
+                val (emojiFromLowSurrogate, lowSurrogateRange) = reader.readString(10L, 1)
+                assertEquals("😄", emojiFromLowSurrogate)
+                assertEquals(8L..<12L, lowSurrogateRange)
             }
         }
     }
@@ -341,6 +467,17 @@ fun createTestFile(content: String, testBlock: (File) -> Unit) {
     val file = File("build/test", "${UUID.randomUUID()}.txt")
     file.parentFile.mkdirs()
     file.writeText(content, Charsets.UTF_8)
+    try {
+        testBlock(file)
+    } finally {
+        file.delete()
+    }
+}
+
+fun createTestFile(content: ByteArray, testBlock: (File) -> Unit) {
+    val file = File("build/test", "${UUID.randomUUID()}.txt")
+    file.parentFile.mkdirs()
+    file.writeBytes(content)
     try {
         testBlock(file)
     } finally {

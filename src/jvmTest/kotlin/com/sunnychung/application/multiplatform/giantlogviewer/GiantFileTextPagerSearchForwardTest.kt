@@ -11,6 +11,7 @@ import java.io.File
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class GiantFileTextPagerSearchForwardTest {
 
@@ -107,6 +108,62 @@ class GiantFileTextPagerSearchForwardTest {
         }
         createTestFile(fileContent) { file ->
             verifySearch(file, fileContent, searchPattern, blockSize)
+        }
+    }
+
+    @Test
+    fun searchPatternLongerThanBlockSize() {
+        val searchPattern = "TARGET-" + "0123456789abcdef".repeat(5)
+        val blockSize = 32
+        val fileContent = "prefix\n" + searchPattern + "\nsuffix"
+        createTestFile(fileContent) { file ->
+            verifySearch(file, fileContent, searchPattern, blockSize, searchRange = 0L..file.length())
+        }
+    }
+
+    @Test
+    fun boundedRegexSearchUsesQuantifierLengthForOverlap() {
+        val searchPattern = "A[\\s\\S]{1000}Z"
+        val blockSize = 64
+        val matchedText = "A" + "x".repeat(1000) + "Z"
+        val fileContent = "prefix\n" + matchedText + "\nsuffix"
+        createTestFile(fileContent) { file ->
+            verifySearch(file, fileContent, searchPattern, blockSize, searchRange = 0L..file.length())
+        }
+    }
+
+    @Test
+    fun unboundedRegexSearchIsRejected() {
+        val fileContent = "prefix\nA" + "x".repeat(1000) + "Z\nsuffix"
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath, 64)
+            val pager = CoroutineGiantFileTextPager(
+                fileReader,
+                MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)),
+            )
+            pager.viewport = Viewport(width = 16 * 7, height = 12 * 5, density = 1f)
+
+            assertFailsWith<IllegalArgumentException> {
+                pager.searchAtAndForward(0L, Regex("A.*Z"))
+            }
+        }
+    }
+
+    @Test
+    fun unboundedRegexSearchCanBypassWithCappedWindow() {
+        val matchedText = "A" + "x".repeat(1000) + "Z"
+        val fileContent = "prefix\n" + matchedText + "\nsuffix"
+        createTestFile(fileContent) { file ->
+            val fileReader = GiantFileReader(file.absolutePath, 64)
+            val pager = CoroutineGiantFileTextPager(
+                fileReader,
+                MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)),
+            )
+            pager.viewport = Viewport(width = 16 * 7, height = 12 * 5, density = 1f)
+
+            val expectedStart = "prefix\n".toByteArray(Charsets.UTF_8).size.toLong()
+            val expectedEnd = expectedStart + matchedText.toByteArray(Charsets.UTF_8).size
+            assertEquals(expectedStart..<expectedEnd, pager.searchAtAndForward(0L, Regex("A.*Z"), isBypass = true))
         }
     }
 
