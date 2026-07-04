@@ -8,20 +8,29 @@ import kotlin.concurrent.read
 import kotlin.concurrent.write
 
 private const val BLOCK_CURRENT = 1
+private const val BLOCK_PREVIOUS = 0
+private const val BLOCK_NEXT = 2
+private const val BLOCK_AFTER_NEXT = 3
+private const val BLOCK_CACHE_SIZE = BLOCK_AFTER_NEXT + 1
+private const val BLOCK_AFTER_NEXT_DISTANCE_FROM_CURRENT = BLOCK_AFTER_NEXT - BLOCK_CURRENT
 
 class GiantFileReader(
     val filePath: String,
-    val blockSize: Int = 1 * 1024 * 1024,
+    val blockSize: Int = DEFAULT_FILE_BLOCK_SIZE_BYTES,
     initialFileLength: Long = -1,
     val textEncoding: TextEncoding = TextEncoding.Auto,
 ) : AutoCloseable {
     private val file = RandomAccessFile(filePath, "r")
 
+    init {
+        require(blockSize >= MIN_BLOCK_SIZE) { "`blockSize` should be at least $MIN_BLOCK_SIZE bytes" }
+    }
+
     var fileLength: Long = initialFileLength.takeIf { it > 0 } ?:
         file.length()
 
     private val blockCacheLock = ReentrantReadWriteLock()
-    private val blockCache: Array<FileBlock?> = arrayOfNulls(4)
+    private val blockCache: Array<FileBlock?> = arrayOfNulls(BLOCK_CACHE_SIZE)
     private var bytePositions: LongRange = -1L .. -2L
     private val codec: TextFileCodec by lazy {
         createCodec(resolveTextEncoding())
@@ -95,14 +104,14 @@ class GiantFileReader(
             readBlockIfNotRead(pos)
         }
         val nextBlock2 = block.takeIf { it.position + 1 < fileSize / blockSize }?.let {
-            val pos = block.copy(position = it.position + 2)
+            val pos = block.copy(position = it.position + BLOCK_AFTER_NEXT_DISTANCE_FROM_CURRENT)
             readBlockIfNotRead(pos)
         }
         blockCacheLock.write {
-            blockCache[0] = prevBlock
-            blockCache[1] = currentBlock
-            blockCache[2] = nextBlock1
-            blockCache[3] = nextBlock2 // this is for tracking multi-byte characters that start at the end of nextBlock1
+            blockCache[BLOCK_PREVIOUS] = prevBlock
+            blockCache[BLOCK_CURRENT] = currentBlock
+            blockCache[BLOCK_NEXT] = nextBlock1
+            blockCache[BLOCK_AFTER_NEXT] = nextBlock2 // this is for tracking multi-byte characters that start at the end of nextBlock1
             bytePositions = (blockCache.filterNotNull().minOfOrNull { it.bytePositions.first } ?: -1) ..
                 (blockCache.filterNotNull().maxOfOrNull { it.bytePositions.last } ?: -2)
         }
@@ -140,7 +149,7 @@ class GiantFileReader(
 
         val fileSize = fileLength
         val start = startBytePosition.coerceIn(0L, fileSize)
-        val endExclusive = (start + length).coerceAtMost(fileSize)
+        val endExclusive = (start + length.toLong()).coerceAtMost(fileSize)
         if (endExclusive <= start) {
             return ByteArray(0) to (start ..< start)
         }
@@ -196,14 +205,14 @@ class GiantFileReader(
     fun encodedLength(text: CharSequence): Long = codec.encodedLength(text)
 
     private fun resolveTextEncoding(): ResolvedTextEncoding {
-        val header = readRawBytes(0L, minOf(4, blockSize)).first
+        val header = readRawBytes(0L, TEXT_ENCODING_PROBE_BYTES).first
         return when {
-            textEncoding == TextEncoding.Utf8 -> utf8Encoding(bomLength = if (header.hasUtf8Bom()) 3 else 0)
-            textEncoding == TextEncoding.Utf16LE -> utf16LEEncoding(bomLength = if (header.hasUtf16LEBom()) 2 else 0)
-            textEncoding == TextEncoding.Utf16BE -> utf16BEEncoding(bomLength = if (header.hasUtf16BEBom()) 2 else 0)
-            header.hasUtf8Bom() -> utf8Encoding(bomLength = 3)
-            header.hasUtf16LEBom() -> utf16LEEncoding(bomLength = 2)
-            header.hasUtf16BEBom() -> utf16BEEncoding(bomLength = 2)
+            textEncoding == TextEncoding.Utf8 -> utf8Encoding(bomLength = if (header.hasUtf8Bom()) UTF8_BOM_BYTE_COUNT else 0)
+            textEncoding == TextEncoding.Utf16LE -> utf16LEEncoding(bomLength = if (header.hasUtf16LEBom()) UTF16_BOM_BYTE_COUNT else 0)
+            textEncoding == TextEncoding.Utf16BE -> utf16BEEncoding(bomLength = if (header.hasUtf16BEBom()) UTF16_BOM_BYTE_COUNT else 0)
+            header.hasUtf8Bom() -> utf8Encoding(bomLength = UTF8_BOM_BYTE_COUNT)
+            header.hasUtf16LEBom() -> utf16LEEncoding(bomLength = UTF16_BOM_BYTE_COUNT)
+            header.hasUtf16BEBom() -> utf16BEEncoding(bomLength = UTF16_BOM_BYTE_COUNT)
             else -> utf8Encoding(bomLength = 0)
         }
     }
@@ -222,9 +231,9 @@ class GiantFileReader(
             charset = StandardCharsets.UTF_8,
             bomLength = bomLength,
             contentStartBytePosition = bomLength.toLong(),
-            lookBehindBytes = 3,
-            lookAheadBytes = 3,
-            maxBytesPerCharacter = 4,
+            lookBehindBytes = UTF8_MAX_CONTINUATION_BYTES,
+            lookAheadBytes = UTF8_MAX_CONTINUATION_BYTES,
+            maxBytesPerCharacter = UTF8_MAX_BYTES_PER_CODE_POINT,
         )
     }
 
@@ -234,9 +243,9 @@ class GiantFileReader(
             charset = StandardCharsets.UTF_16LE,
             bomLength = bomLength,
             contentStartBytePosition = bomLength.toLong(),
-            lookBehindBytes = 4,
-            lookAheadBytes = 4,
-            maxBytesPerCharacter = 4,
+            lookBehindBytes = UTF16_SURROGATE_PAIR_BYTES,
+            lookAheadBytes = UTF16_SURROGATE_PAIR_BYTES,
+            maxBytesPerCharacter = UTF16_SURROGATE_PAIR_BYTES,
         )
     }
 
@@ -246,9 +255,9 @@ class GiantFileReader(
             charset = StandardCharsets.UTF_16BE,
             bomLength = bomLength,
             contentStartBytePosition = bomLength.toLong(),
-            lookBehindBytes = 4,
-            lookAheadBytes = 4,
-            maxBytesPerCharacter = 4,
+            lookBehindBytes = UTF16_SURROGATE_PAIR_BYTES,
+            lookAheadBytes = UTF16_SURROGATE_PAIR_BYTES,
+            maxBytesPerCharacter = UTF16_SURROGATE_PAIR_BYTES,
         )
     }
 
@@ -269,6 +278,10 @@ class GiantFileReader(
         return size >= 2 &&
             (this[0].toInt() and 0xFF) == 0xFE &&
             (this[1].toInt() and 0xFF) == 0xFF
+    }
+
+    companion object {
+        const val MIN_BLOCK_SIZE: Int = TEXT_ENCODING_PROBE_BYTES
     }
 
     private class FileBlock(val pos: FileBlockPosition, val bytes: ByteArray, val bytePositions: LongRange)

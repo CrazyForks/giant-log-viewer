@@ -1,5 +1,6 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.io
 
+import com.sunnychung.application.multiplatform.giantlogviewer.extension.toClampedInt
 import java.nio.charset.StandardCharsets
 
 internal interface TextFileCodec {
@@ -33,23 +34,23 @@ internal class Utf8TextFileCodec(
             .coerceAtMost(fileLength)
         val rawStart = (requestedStart - encoding.lookBehindBytes)
             .coerceAtLeast(encoding.contentStartBytePosition)
-        val rawEndExclusive = (requestedStart + maxBytes + encoding.lookAheadBytes)
+        val rawEndExclusive = (requestedStart + maxBytes.toLong() + encoding.lookAheadBytes.toLong())
             .coerceAtMost(fileLength)
-        val (bytes, byteRange) = readBytes(rawStart, (rawEndExclusive - rawStart).toInt())
+        val (bytes, byteRange) = readBytes(rawStart, (rawEndExclusive - rawStart).toClampedInt())
         if (bytes.isEmpty()) {
             return Utf8DecodedTextWindow("", requestedStart..<requestedStart)
         }
 
         val requestedStartIndex = (requestedStart - byteRange.start).toInt().coerceIn(0, bytes.size)
-        val requestedEndIndex = (requestedStart + maxBytes - byteRange.start).toInt().coerceIn(0, bytes.size)
+        val requestedEndIndex = (requestedStart + maxBytes.toLong() - byteRange.start).toClampedInt().coerceIn(0, bytes.size)
         val decodeStartIndex = findSequenceStart(bytes, requestedStartIndex)
         val decodeEndIndex = findSequenceEnd(bytes, decodeStartIndex, requestedEndIndex)
             .coerceAtLeast(decodeStartIndex)
             .coerceAtMost(bytes.size)
 
         val text = String(bytes, decodeStartIndex, decodeEndIndex - decodeStartIndex, StandardCharsets.UTF_8)
-        val decodedStart = byteRange.start + decodeStartIndex
-        val decodedEnd = byteRange.start + decodeEndIndex
+        val decodedStart = byteRange.start + decodeStartIndex.toLong()
+        val decodedEnd = byteRange.start + decodeEndIndex.toLong()
         return Utf8DecodedTextWindow(text, decodedStart..<decodedEnd)
     }
 
@@ -59,8 +60,8 @@ internal class Utf8TextFileCodec(
         while (i < text.length) {
             val char = text[i]
             if (char.isHighSurrogate() && i + 1 < text.length && text[i + 1].isLowSurrogate()) {
-                bytes += 4
-                i += 2
+                bytes += UTF8_MAX_BYTES_PER_CODE_POINT
+                i += KOTLIN_CHARS_PER_SURROGATE_PAIR
             } else {
                 bytes += when {
                     char.code <= 0x7F -> 1
@@ -76,7 +77,7 @@ internal class Utf8TextFileCodec(
     private fun findSequenceStart(bytes: ByteArray, index: Int): Int {
         var i = index.coerceIn(0, bytes.size)
         var lookBehind = 0
-        while (i in 1..<bytes.size && lookBehind < 3 && bytes[i].isContinuationByte()) {
+        while (i in 1..<bytes.size && lookBehind < UTF8_MAX_CONTINUATION_BYTES && bytes[i].isContinuationByte()) {
             --i
             ++lookBehind
         }
@@ -104,7 +105,7 @@ internal class Utf8TextFileCodec(
         return when (toUByte()) {
             in 0xC2u..0xDFu -> 2
             in 0xE0u..0xEFu -> 3
-            in 0xF0u..0xF4u -> 4
+            in 0xF0u..0xF4u -> UTF8_MAX_BYTES_PER_CODE_POINT
             else -> 1
         }
     }
@@ -127,33 +128,33 @@ internal class Utf16TextFileCodec(
             .coerceAtLeast(encoding.contentStartBytePosition)
             .coerceAtMost(fileLength)
         var decodeStart = alignToCodeUnitStart(requestedStart)
-        if (decodeStart >= encoding.contentStartBytePosition + 2 && readCodeUnit(decodeStart, fileLength, readBytes)?.toChar()?.isLowSurrogate() == true) {
-            decodeStart -= 2
+        if (decodeStart >= encoding.contentStartBytePosition + UTF16_CODE_UNIT_BYTES && readCodeUnit(decodeStart, fileLength, readBytes)?.toChar()?.isLowSurrogate() == true) {
+            decodeStart -= UTF16_CODE_UNIT_BYTES
         }
 
-        val requestedEnd = (requestedStart + maxBytes).coerceAtMost(fileLength)
+        val requestedEnd = (requestedStart + maxBytes.toLong()).coerceAtMost(fileLength)
         var decodeEnd = alignToCodeUnitEnd(requestedEnd).coerceAtMost(fileLength)
-        if (decodeEnd - 2 >= decodeStart && readCodeUnit(decodeEnd - 2, fileLength, readBytes)?.toChar()?.isHighSurrogate() == true) {
-            decodeEnd = (decodeEnd + 2).coerceAtMost(fileLength)
+        if (decodeEnd - UTF16_CODE_UNIT_BYTES >= decodeStart && readCodeUnit(decodeEnd - UTF16_CODE_UNIT_BYTES, fileLength, readBytes)?.toChar()?.isHighSurrogate() == true) {
+            decodeEnd = (decodeEnd + UTF16_CODE_UNIT_BYTES).coerceAtMost(fileLength)
         }
-        if ((decodeEnd - decodeStart) % 2L != 0L) {
+        if ((decodeEnd - decodeStart) % UTF16_CODE_UNIT_BYTES != 0L) {
             --decodeEnd
         }
         if (decodeEnd <= decodeStart) {
             return Utf16DecodedTextWindow("", decodeStart..<decodeStart)
         }
 
-        val (bytes, byteRange) = readBytes(decodeStart, (decodeEnd - decodeStart).toInt())
-        val usableLength = bytes.size - bytes.size % 2
+        val (bytes, byteRange) = readBytes(decodeStart, (decodeEnd - decodeStart).toClampedInt())
+        val usableLength = bytes.size - bytes.size % UTF16_CODE_UNIT_BYTES
         val text = String(bytes, 0, usableLength, encoding.charset)
-        return Utf16DecodedTextWindow(text, byteRange.start..<byteRange.start + usableLength)
+        return Utf16DecodedTextWindow(text, byteRange.start..<(byteRange.start + usableLength.toLong()))
     }
 
-    override fun encodedLength(text: CharSequence): Long = text.length * 2L
+    override fun encodedLength(text: CharSequence): Long = text.length * UTF16_CODE_UNIT_BYTES.toLong()
 
     private fun alignToCodeUnitStart(bytePosition: Long): Long {
         val relative = bytePosition - encoding.contentStartBytePosition
-        return if (relative % 2L == 0L) {
+        return if (relative % UTF16_CODE_UNIT_BYTES == 0L) {
             bytePosition
         } else {
             bytePosition - 1
@@ -162,10 +163,10 @@ internal class Utf16TextFileCodec(
 
     private fun alignToCodeUnitEnd(bytePosition: Long): Long {
         val relative = bytePosition - encoding.contentStartBytePosition
-        return if (relative % 2L == 0L) {
+        return if (relative % UTF16_CODE_UNIT_BYTES == 0L) {
             bytePosition
         } else {
-            bytePosition + 1
+            bytePosition + 1L
         }
     }
 
@@ -174,11 +175,11 @@ internal class Utf16TextFileCodec(
         fileLength: Long,
         readBytes: (Long, Int) -> Pair<ByteArray, LongRange>,
     ): Int? {
-        if (bytePosition < encoding.contentStartBytePosition || bytePosition + 1 >= fileLength) {
+        if (bytePosition < encoding.contentStartBytePosition || bytePosition + UTF16_CODE_UNIT_BYTES - 1L >= fileLength) {
             return null
         }
-        val (bytes, _) = readBytes(bytePosition, 2)
-        if (bytes.size < 2) {
+        val (bytes, _) = readBytes(bytePosition, UTF16_CODE_UNIT_BYTES)
+        if (bytes.size < UTF16_CODE_UNIT_BYTES) {
             return null
         }
         val first = bytes[0].toInt() and 0xFF

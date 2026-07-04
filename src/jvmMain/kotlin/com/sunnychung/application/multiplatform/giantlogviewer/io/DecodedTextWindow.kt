@@ -26,11 +26,11 @@ internal class Utf8DecodedTextWindow(
         while (i < target) {
             val char = text[i]
             if (char.isHighSurrogate() && i + 1 < text.length && text[i + 1].isLowSurrogate()) {
-                if (i + 2 > target) {
+                if (i + KOTLIN_CHARS_PER_SURROGATE_PAIR > target) {
                     break
                 }
-                byteOffset += 4
-                i += 2
+                byteOffset += UTF8_MAX_BYTES_PER_CODE_POINT
+                i += KOTLIN_CHARS_PER_SURROGATE_PAIR
             } else {
                 byteOffset += char.utf8ByteLength()
                 ++i
@@ -65,7 +65,7 @@ internal class Utf16DecodedTextWindow(
 ) : DecodedTextWindow {
     override fun bytePositionAtCharIndex(charIndex: Int): Long {
         val target = normalizeCharIndex(charIndex.coerceIn(0, text.length))
-        return byteRange.start + target * 2L
+        return byteRange.start + target * UTF16_CODE_UNIT_BYTES.toLong()
     }
 
     private fun normalizeCharIndex(index: Int): Int {

@@ -15,6 +15,21 @@ import kotlin.test.assertEquals
 class GiantFileTextPagerNextRowTest {
 
     @Test
+    fun viewportRowCountCanExceedIntMaxValue() {
+        createTestFile("x\n") { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = CoroutineGiantFileTextPager(
+                fileReader,
+                MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(charWidth = 16f, rowHeight = 0.5f)),
+            )
+
+            pager.viewport = Viewport(width = 16, height = Int.MAX_VALUE, density = 1f)
+
+            assertEquals(Int.MAX_VALUE.toLong() * 2L, pager.numOfRowsInViewport)
+        }
+    }
+
+    @Test
     fun singleLineLongText() {
         val fileLength = 10000
         val fileContent = (0 ..< fileLength).joinToString("") {

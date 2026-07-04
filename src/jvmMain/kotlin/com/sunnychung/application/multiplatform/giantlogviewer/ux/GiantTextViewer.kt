@@ -157,13 +157,13 @@ fun GiantTextViewer(
         scrollY += reversedDelta
         val rowHeight = charMeasurer.getRowHeight()
         if (scrollY >= rowHeight) {
-            val numOfRowsToScroll = (scrollY / rowHeight).toInt()
-            scrollY -= rowHeight * numOfRowsToScroll
+            val numOfRowsToScroll = (scrollY / rowHeight).toLong()
+            scrollY -= rowHeight * numOfRowsToScroll.toFloat()
             filePager.moveToNextRow(numOfRowsToScroll)
             onNavigate(filePager.viewportStartBytePosition)
         } else if (scrollY <= -rowHeight) {
-            val numOfRowsToScroll = (abs(scrollY) / rowHeight).toInt()
-            scrollY += rowHeight * numOfRowsToScroll
+            val numOfRowsToScroll = (abs(scrollY) / rowHeight).toLong()
+            scrollY += rowHeight * numOfRowsToScroll.toFloat()
             filePager.moveToPrevRow(numOfRowsToScroll)
             onNavigate(filePager.viewportStartBytePosition)
         }
@@ -399,7 +399,7 @@ fun GiantTextViewer(
                 while (fileViewState.isFollowing) {
                     fileViewState.fileLength = fileViewState.file.length()
                     filePager.moveToTheLastRow()
-                    filePager.moveToPrevRow(rows = (filePager.numOfRowsInViewport - 3).coerceAtLeast(0))
+                    filePager.moveToPrevRow(rows = (filePager.numOfRowsInViewport - 3L).coerceAtLeast(0L))
                     onNavigate(filePager.viewportStartBytePosition)
                     delay(1.seconds().millis)
                 }
