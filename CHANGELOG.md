@@ -21,6 +21,7 @@ _Changes since 1.2.0_
 - Mouse scrolling did not reposition the search cursor correctly
 - Search cursor was incorrect after going pass the last search result
 - Search result states did not reset after loading a new file
+- Possible overflow when a file with over 1 TB size is navigated
 
 
 ## [1.2.0] -- 2025-05-12
