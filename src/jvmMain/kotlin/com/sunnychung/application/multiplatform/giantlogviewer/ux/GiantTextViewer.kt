@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -70,6 +71,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.displayName
 import com.sunnychung.application.multiplatform.giantlogviewer.io.selectableTextEncodings
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.AppFont
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.application.multiplatform.giantlogviewer.viewstate.FileViewState
@@ -86,9 +88,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.NumberFormat
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.floor
@@ -488,6 +487,8 @@ private fun GiantTextViewerStatusBar(
     val colors = LocalColor.current
     val font = LocalFont.current
     val numberFormat = remember { NumberFormat.getIntegerInstance(Locale.US) }
+    val statusTextMeasurer = rememberTextMeasurer(0)
+    val density = LocalDensity.current
     val fontSize = 12.sp
     val textStyle = TextStyle(
         color = colors.dialogPrimary,
@@ -495,69 +496,147 @@ private fun GiantTextViewerStatusBar(
         fontSize = fontSize,
     )
     val monospaceStyle = textStyle.copy(fontFamily = font.monospaceFontFamily)
+    val dropdownTextStyle = textStyle.copy(fontWeight = FontWeight.Bold)
 
     val (viewportStartBytePosition, viewportEndBytePosition) = currentViewportByteRange(filePager, fileLength) // 0-based
         .let { (it.first + 1).coerceAtMost(fileLength) to (it.second + 1).coerceAtMost(fileLength) } // map to 1-based
+    val fullBytePositionText = "${numberFormat.format(viewportStartBytePosition)} ~ ${numberFormat.format(viewportEndBytePosition)} / ${numberFormat.format(fileLength)}"
+    val compactBytePositionText = "${numberFormat.format(viewportStartBytePosition)} / ${numberFormat.format(fileLength)}"
     val selectedEncodingLabel = if (selectedTextEncoding == TextEncoding.Auto) {
         "${selectedTextEncoding.displayName()} (${resolvedTextEncoding.displayName()})"
     } else {
         selectedTextEncoding.displayName()
     }
+    val lastModifiedDateTime = formatLastModified(lastModifiedMillis)
+    val lastModifiedTime = formatLastModified(lastModifiedMillis, "HH:mm:ss")
+    val lastModifiedTimeWithoutSeconds = formatLastModified(lastModifiedMillis, "HH:mm")
 
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(28.dp)
             .background(colors.statusBarBackground)
             .padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(
-            text = "${numberFormat.format(viewportStartBytePosition)} ~ ${numberFormat.format(viewportEndBytePosition)} / ${numberFormat.format(fileLength)}",
-            style = monospaceStyle,
+        val availableWidthPx = with(density) { maxWidth.toPx() }
+        val spacingPx = with(density) { 8.dp.toPx() }
+        val dropdownWidthPx = statusTextMeasurer.measure(
+            text = selectedEncodingLabel,
+            style = dropdownTextStyle,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier,
+        ).size.width + with(density) { 38.dp.toPx() }
+
+        val statusVariant = listOf(
+            StatusBarTextVariant(
+                bytePositionText = fullBytePositionText,
+                lastModifiedText = annotatedLastModifiedText(font, "Last modified: ", lastModifiedDateTime),
+            ),
+            StatusBarTextVariant(
+                bytePositionText = compactBytePositionText,
+                lastModifiedText = annotatedLastModifiedText(font, "Last modified: ", lastModifiedDateTime),
+            ),
+            StatusBarTextVariant(
+                bytePositionText = compactBytePositionText,
+                lastModifiedText = annotatedLastModifiedText(font, "", lastModifiedDateTime),
+            ),
+            StatusBarTextVariant(
+                bytePositionText = compactBytePositionText,
+                lastModifiedText = annotatedLastModifiedText(font, "", lastModifiedTime),
+            ),
+            StatusBarTextVariant(
+                bytePositionText = compactBytePositionText,
+                lastModifiedText = annotatedLastModifiedText(font, "", lastModifiedTimeWithoutSeconds),
+            ),
+            StatusBarTextVariant(
+                bytePositionText = compactBytePositionText,
+                lastModifiedText = null,
+            ),
+        ).firstOrNull {
+            val bytePositionWidthPx = statusTextMeasurer.measure(
+                text = it.bytePositionText,
+                style = monospaceStyle,
+                maxLines = 1,
+            ).size.width
+            val lastModifiedWidthPx = it.lastModifiedText?.let { text ->
+                statusTextMeasurer.measure(
+                    text = text,
+                    style = textStyle,
+                    maxLines = 1,
+                ).size.width
+            } ?: 0
+            bytePositionWidthPx + lastModifiedWidthPx + dropdownWidthPx + spacingPx * 2 <= availableWidthPx
+        } ?: StatusBarTextVariant(
+            bytePositionText = compactBytePositionText,
+            lastModifiedText = null,
         )
-        BasicText(
-            text = buildAnnotatedString {
-                append("Last modified: ")
-                withStyle(SpanStyle(fontFamily = font.monospaceFontFamily)) {
-                    append(formatLastModified(lastModifiedMillis))
-                }
-            },
-            style = textStyle.copy(textAlign = TextAlign.Center),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Box {
-            DropDownView(
-                selected = selectedEncodingLabel,
-                entries = selectableTextEncodings.map {
-                    ContextMenuItemEntry(
-                        type = ContextMenuItemEntry.Type.Button,
-                        displayText = it.displayName(),
-                        isEnabled = true,
-                        testTag = it.name,
-                        action = { onSelectTextEncoding(it) },
-                    )
-                },
-                textStyleModifier = { it.copy(fontSize = fontSize, fontWeight = FontWeight.Bold) },
-                modifier = Modifier.wrapContentSize()
-                    .align(Alignment.CenterEnd),
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicText(
+                text = statusVariant.bytePositionText,
+                style = monospaceStyle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier,
             )
+            statusVariant.lastModifiedText?.let {
+                BasicText(
+                    text = it,
+                    style = textStyle.copy(textAlign = TextAlign.Center),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            } ?: Box(Modifier.weight(1f))
+            Box {
+                DropDownView(
+                    selected = selectedEncodingLabel,
+                    entries = selectableTextEncodings.map {
+                        ContextMenuItemEntry(
+                            type = ContextMenuItemEntry.Type.Button,
+                            displayText = it.displayName(),
+                            isEnabled = true,
+                            testTag = it.name,
+                            action = { onSelectTextEncoding(it) },
+                        )
+                    },
+                    textStyleModifier = { it.copy(fontSize = fontSize, fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.wrapContentSize()
+                        .align(Alignment.CenterEnd),
+                )
+            }
         }
     }
 }
 
+private data class StatusBarTextVariant(
+    val bytePositionText: String,
+    val lastModifiedText: AnnotatedString?,
+)
+
+private fun annotatedLastModifiedText(
+    font: AppFont,
+    label: String,
+    dateTimeText: String,
+): AnnotatedString = buildAnnotatedString {
+    append(label)
+    withStyle(SpanStyle(fontFamily = font.monospaceFontFamily)) {
+        append(dateTimeText)
+    }
+}
 private fun currentViewportByteRange(filePager: GiantFileTextPager, fileLength: Long): Pair<Long, Long> {
     val viewportStart = filePager.viewportStartBytePosition.coerceIn(0L, fileLength)
-    val visibleRowCount = filePager.numOfRowsInViewport
-        .coerceAtMost(Int.MAX_VALUE.toLong())
-        .toInt()
-        .coerceAtLeast(0)
+    val rowHeight = filePager.rowHeight()
+    val visibleRowCount = if (filePager.viewport.height <= 0 || !java.lang.Float.isFinite(rowHeight) || rowHeight <= 0f) {
+        0
+    } else {
+        floor(filePager.viewport.height.toDouble() / rowHeight.toDouble())
+            .toInt()
+            .coerceAtLeast(0)
+    }
     val visibleRows = filePager.textInViewport.take(visibleRowCount)
     val rowStartBytePositions = filePager.startBytePositionsInViewport
 
@@ -571,9 +650,9 @@ private fun currentViewportByteRange(filePager: GiantFileTextPager, fileLength: 
     return viewportStart to viewportEnd
 }
 
-private fun formatLastModified(lastModifiedMillis: Long): String {
+private fun formatLastModified(lastModifiedMillis: Long, pattern: String = "yyyy-MM-dd HH:mm:ss"): String {
     return KInstant(lastModifiedMillis).atLocalZoneOffset()
-        .format("yyyy-MM-dd HH:mm:ss")
+        .format(pattern)
 }
 
 private fun findBytePositionByCoordinatePx(filePager: GiantFileTextPager, point: Offset): Long {
