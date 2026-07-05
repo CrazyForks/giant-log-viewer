@@ -474,41 +474,8 @@ abstract class GiantFileTextPager(
         }
     }
 
-    fun moveToNextRow() { // TODO refactor to keep only one implementation of moveToNext* functions
-        lock.write {
-            val numOfRowsInViewport = numOfRowsInViewport
-            if (numOfRowsInViewport == 0L) {
-                return
-            }
-            val maxNumOfCharInViewport = numOfCharsInViewport()
-            val window = fileReader.readText(viewportStartBytePosition, readByteWindowSize(maxNumOfCharInViewport))
-            val manyText = window.text
-            val firstLineSeparator = lineSeparatorRegex.find(manyText)?.range
-            val nextRowStart = if (firstLineSeparator != null) {
-                // the next row is the next line
-                val firstLine = manyText.subSequence(0 ..< firstLineSeparator.start)
-                val (rowStarts, lastRowWidth) = textLayouter.layoutOneLine(firstLine, viewport.width.toFloat(), 0f, 0)
-                rowStarts.getOrNull(0)?.let {
-                    if (it >= firstLine.length) {
-                        firstLineSeparator.safeEndExclusive
-                    } else {
-                        it
-                    }
-                } ?: firstLineSeparator.safeEndExclusive
-            } else {
-                // the next row is still the current line or does not exist (end of file)
-                // FIXME what if `manyText` starts with the end part of a previous line?
-                val (rowStarts, lastRowWidth) = textLayouter.layoutOneLine(manyText, viewport.width.toFloat(), 0f, 0)
-                rowStarts.getOrNull(0)
-            }
-            if (nextRowStart != null) {
-                viewportStartBytePosition = window.bytePositionAtCharIndex(nextRowStart)
-                viewportStartCharPosition += nextRowStart /*-
-                        manyText.subSequence(0 ..< nextRowStart)
-                            .count { it.isLowSurrogate() }*/
-                rebuildCacheIfInvalid()
-            }
-        }
+    fun moveToNextRow() {
+        moveToNextRow(1L)
     }
 
     fun moveToNextPage() {

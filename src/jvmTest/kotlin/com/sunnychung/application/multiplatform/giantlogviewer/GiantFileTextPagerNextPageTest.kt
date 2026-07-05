@@ -23,7 +23,7 @@ class GiantFileTextPagerNextPageTest {
             var loop = 0
             with(PageState(fileContent = fileContent)) {
                 while (loop < fileLength && start < fileLength) {
-                    println("pos: ${pager.viewportStartCharPosition}")
+//                    println("pos: ${pager.viewportStartCharPosition}")
                     assertEquals(start.toLong(), pager.viewportStartCharPosition, "loop $loop")
                     assertEquals(
                         encoding.bytePosition(fileContent, start),
