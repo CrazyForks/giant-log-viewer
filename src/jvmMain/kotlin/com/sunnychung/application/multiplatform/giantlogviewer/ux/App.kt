@@ -185,6 +185,10 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
         searchEntryOfResult = ""
     }
 
+    fun isSearchResultStateCurrent(): Boolean {
+        return searchOptions == searchOptionsOfResult && searchEntry == searchEntryOfResult
+    }
+
     fun currentSearchRegex(): Regex? {
         if (searchEntry.isEmpty()) {
             return null
@@ -282,10 +286,13 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
             TextSearchBar(
                 key = selectedFilePath.replace("/", "\\/"),
                 text = searchEntry,
-                onTextChange = { searchEntry = it },
+                onTextChange = {
+                    searchEntry = it
+                    resetSearchResultState()
+                },
                 searchOptions = searchOptions,
                 isSearchBackwardDefault = isSearchBackwardDefault,
-                searchResultType = if (searchOptions != searchOptionsOfResult || searchEntry != searchEntryOfResult) {
+                searchResultType = if (!isSearchResultStateCurrent()) {
                     SearchResultType.NotYetSearch
                 } else if (highlightByteRange.isEmpty()) {
                     SearchResultType.NoResult
@@ -295,14 +302,17 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
                 onToggleRegex = {
                     if (isNavigationLocked) return@TextSearchBar
                     searchOptions = searchOptions.copy(isRegex = it)
+                    resetSearchResultState()
                 },
                 onToggleCaseSensitive = {
                     if (isNavigationLocked) return@TextSearchBar
                     searchOptions = searchOptions.copy(isCaseSensitive = it)
+                    resetSearchResultState()
                 },
                 onToggleWholeWord = {
                     if (isNavigationLocked) return@TextSearchBar
                     searchOptions = searchOptions.copy(isWholeWord = it)
+                    resetSearchResultState()
                 },
                 onClickPrev = {
                     if (isNavigationLocked) return@TextSearchBar
@@ -320,7 +330,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
                         println("search found at $result")
                         pager.moveToRowOfBytePosition(result.start)
                     } else {
-//                        searchCursor = 0
+                        searchCursor = pager.fileReader.contentStartBytePosition
                     }
                     highlightByteRange = result
 
@@ -333,8 +343,13 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
                     val regex = currentSearchRegex() ?: return@TextSearchBar
                     val pager = filePager ?: return@TextSearchBar
                     if (pager.viewportStartBytePosition < fileViewState.fileLength) {
+                        val searchStartBytePosition = if (isSearchResultStateCurrent() && !highlightByteRange.isEmpty()) {
+                            searchCursor + 1
+                        } else {
+                            searchCursor
+                        }
                         val result = try {
-                            pager.searchAtAndForward(searchCursor + 1, regex)
+                            pager.searchAtAndForward(searchStartBytePosition, regex)
                         } catch (e: Throwable) {
                             e.printStackTrace()
                             return@TextSearchBar
@@ -344,7 +359,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
                             println("search found at $result")
                             pager.moveToRowOfBytePosition(result.start)
                         } else {
-//                            searchCursor = fileViewState.fileLength
+                            searchCursor = fileViewState.fileLength
                         }
                         highlightByteRange = result
 
