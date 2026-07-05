@@ -87,33 +87,33 @@ class GiantFileTextPagerMixedNavigationTest {
             assertEquals(encoding.contentStartBytePosition, pager.viewportStartBytePosition)
             assertEquals("r0", pager.textInViewport.first().toString())
         }
+    }
 
-        @ParameterizedTest
-        @EnumSource(TestFileEncoding::class)
-        fun pageMovementUsesOneRowWhenViewportHasNoFullRows(encoding: TestFileEncoding) {
-            val fileContent = "first\nsecond\nthird"
-            createTestFile(fileContent, encoding) { file ->
-                val fileReader = GiantFileReader(file.absolutePath)
-                val pager = CoroutineGiantFileTextPager(
-                    fileReader,
-                    MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)),
-                )
-                pager.viewport = Viewport(width = 16 * 23, height = 1, density = 1f)
-                val initialPosition = pager.viewportStartBytePosition
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun pageMovementUsesOneRowWhenViewportHasNoFullRows(encoding: TestFileEncoding) {
+        val fileContent = "first\nsecond\nthird"
+        createTestFile(fileContent, encoding) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = CoroutineGiantFileTextPager(
+                fileReader,
+                MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)),
+            )
+            pager.viewport = Viewport(width = 16 * 23, height = 1, density = 1f)
+            val initialPosition = pager.viewportStartBytePosition
 
-                pager.moveToNextRow(0L)
-                assertEquals(initialPosition, pager.viewportStartBytePosition)
+            pager.moveToNextRow(0L)
+            assertEquals(initialPosition, pager.viewportStartBytePosition)
 
-                pager.moveToNextPage()
-                val secondLinePosition = encoding.bytePosition(fileContent, "first\n".length)
-                assertEquals(secondLinePosition, pager.viewportStartBytePosition)
+            pager.moveToNextPage()
+            val secondLinePosition = encoding.bytePosition(fileContent, "first\n".length)
+            assertEquals(secondLinePosition, pager.viewportStartBytePosition)
 
-                pager.moveToPrevRow(0L)
-                assertEquals(secondLinePosition, pager.viewportStartBytePosition)
+            pager.moveToPrevRow(0L)
+            assertEquals(secondLinePosition, pager.viewportStartBytePosition)
 
-                pager.moveToPrevPage()
-                assertEquals(initialPosition, pager.viewportStartBytePosition)
-            }
+            pager.moveToPrevPage()
+            assertEquals(initialPosition, pager.viewportStartBytePosition)
         }
     }
 }
