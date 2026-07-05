@@ -10,12 +10,17 @@ _Changes since 1.2.0_
 
 ### Added
 - Follow new appends to the end of the opened file (Shift-F)
+- Support UTF-8 with BOM and UTF-16 encodings in additional to current encoding support of UTF-8 without BOM
+- Status bar, which shows current byte range, last modified date time and current encoding
 
 ### Changed
 - New appends to the opened file are not automatically followed anymore
+- After going pass the last search result, searching reversely would first visit the last search result
 
 ### Fixed
 - Mouse scrolling did not reposition the search cursor correctly
+- Search cursor was incorrect after going pass the last search result
+- Search result states did not reset after loading a new file
 
 
 ## [1.2.0] -- 2025-05-12
