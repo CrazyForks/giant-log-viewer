@@ -105,6 +105,8 @@ fun GiantTextViewer(
     onNavigate: (bytePosition: Long) -> Unit,
     onDocumentContentChanged: () -> Unit,
     onSearchRequest: (SearchMode) -> Unit,
+    bottomContent: @Composable () -> Unit = {},
+    shouldRequestFocus: Boolean = true,
 ) {
     val file = File(filePath)
     if (!file.isFile) {
@@ -289,14 +291,6 @@ fun GiantTextViewer(
             }
             false
         }
-        .onPointerEvent(eventType = PointerEventType.Press) {
-            // not sure which Compose bug leading to require implementing "click to focus" manually
-            focusRequester.requestFocus()
-
-            // clear selection
-            dragStartBytePosition = 0L
-            dragEndBytePosition = 0L
-        }
         .focusRequester(focusRequester)
         .focusable()
     ) {
@@ -304,6 +298,14 @@ fun GiantTextViewer(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .onPointerEvent(eventType = PointerEventType.Press) {
+                    // not sure which Compose bug leading to require implementing "click to focus" manually
+                    focusRequester.requestFocus()
+
+                    // clear selection
+                    dragStartBytePosition = 0L
+                    dragEndBytePosition = 0L
+                }
         ) {
             val startTime = KInstant.now()
             Box(modifier = Modifier
@@ -435,6 +437,8 @@ fun GiantTextViewer(
             println("prepare rendering in ${KInstant.now() - startTime}")
         }
 
+        bottomContent()
+
         GiantTextViewerStatusBar(
             filePager = filePager,
             fileLength = fileLength,
@@ -449,8 +453,10 @@ fun GiantTextViewer(
         )
     }
 
-    LaunchedEffect(filePath, refreshKey, encodingReloadKey) {
-        focusRequester.requestFocus()
+    LaunchedEffect(filePath, refreshKey, encodingReloadKey, shouldRequestFocus) {
+        if (shouldRequestFocus) {
+            focusRequester.requestFocus()
+        }
     }
 
     LaunchedEffect(filePath, fileViewState.isFollowing) {
@@ -581,7 +587,7 @@ private fun GiantTextViewerStatusBar(
         )
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -592,6 +598,7 @@ private fun GiantTextViewerStatusBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier,
             )
+
             statusVariant.lastModifiedText?.let {
                 BasicText(
                     text = it,
@@ -601,23 +608,21 @@ private fun GiantTextViewerStatusBar(
                     modifier = Modifier.weight(1f),
                 )
             } ?: Box(Modifier.weight(1f))
-            Box {
-                DropDownView(
-                    selected = selectedEncodingLabel,
-                    entries = selectableTextEncodings.map {
-                        ContextMenuItemEntry(
-                            type = ContextMenuItemEntry.Type.Button,
-                            displayText = it.displayName(),
-                            isEnabled = true,
-                            testTag = it.name,
-                            action = { onSelectTextEncoding(it) },
-                        )
-                    },
-                    textStyleModifier = { it.copy(fontSize = fontSize, fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.wrapContentSize()
-                        .align(Alignment.CenterEnd),
-                )
-            }
+
+            DropDownView(
+                selected = selectedEncodingLabel,
+                entries = selectableTextEncodings.map {
+                    ContextMenuItemEntry(
+                        type = ContextMenuItemEntry.Type.Button,
+                        displayText = it.displayName(),
+                        isEnabled = true,
+                        testTag = it.name,
+                        action = { onSelectTextEncoding(it) },
+                    )
+                },
+                textStyleModifier = { it.copy(fontSize = fontSize, fontWeight = FontWeight.Bold) },
+                modifier = Modifier.wrapContentSize()
+            )
         }
     }
 }

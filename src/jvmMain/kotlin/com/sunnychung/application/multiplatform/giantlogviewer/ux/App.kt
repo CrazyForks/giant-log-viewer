@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -177,12 +178,16 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
     var highlightByteRange by remember(filePager) { mutableStateOf(0L .. -1L) }
     var searchOptionsOfResult by remember { mutableStateOf<SearchOptions?>(null) }
     var searchEntryOfResult by remember { mutableStateOf("") }
+    var searchBarReloadKey by remember { mutableIntStateOf(0) }
 
-    fun resetSearchResultState() {
+    fun resetSearchResultState(recreateSearchField: Boolean = false) {
         searchCursor = filePager?.viewportStartBytePosition ?: 0L
         highlightByteRange = 0L .. -1L
         searchOptionsOfResult = null
         searchEntryOfResult = ""
+        if (recreateSearchField) {
+            searchBarReloadKey++
+        }
     }
 
     fun isSearchResultStateCurrent(): Boolean {
@@ -267,7 +272,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
                 onPagerReady = { filePager = it },
                 onNavigate = { searchCursor = it },
                 onDocumentContentChanged = {
-                    resetSearchResultState()
+                    resetSearchResultState(recreateSearchField = true)
                 },
                 onSearchRequest = {
                     if (it == SearchMode.None) {
@@ -277,110 +282,112 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
                         isSearchBackwardDefault = (it == SearchMode.Backward)
                     }
                 },
+                bottomContent = {
+                    if (isSearchBarVisible) {
+                        TextSearchBar(
+                            key = "${selectedFilePath.replace("/", "\\/")}/$searchBarReloadKey",
+                            text = searchEntry,
+                            onTextChange = {
+                                searchEntry = it
+                                resetSearchResultState()
+                            },
+                            searchOptions = searchOptions,
+                            isSearchBackwardDefault = isSearchBackwardDefault,
+                            searchResultType = if (!isSearchResultStateCurrent()) {
+                                SearchResultType.NotYetSearch
+                            } else if (highlightByteRange.isEmpty()) {
+                                SearchResultType.NoResult
+                            } else {
+                                SearchResultType.SomeResult
+                            },
+                            onToggleRegex = {
+                                if (isNavigationLocked) return@TextSearchBar
+                                searchOptions = searchOptions.copy(isRegex = it)
+                                resetSearchResultState()
+                            },
+                            onToggleCaseSensitive = {
+                                if (isNavigationLocked) return@TextSearchBar
+                                searchOptions = searchOptions.copy(isCaseSensitive = it)
+                                resetSearchResultState()
+                            },
+                            onToggleWholeWord = {
+                                if (isNavigationLocked) return@TextSearchBar
+                                searchOptions = searchOptions.copy(isWholeWord = it)
+                                resetSearchResultState()
+                            },
+                            onClickPrev = {
+                                if (isNavigationLocked) return@TextSearchBar
+
+                                val regex = currentSearchRegex() ?: return@TextSearchBar
+                                val pager = filePager ?: return@TextSearchBar
+                                val result = try {
+                                    pager.searchBackward(searchCursor, regex)
+                                } catch (e: Throwable) {
+                                    e.printStackTrace()
+                                    return@TextSearchBar
+                                }
+                                if (!result.isEmpty()) {
+                                    searchCursor = result.start
+                                    println("search found at $result")
+                                    pager.moveToRowOfBytePosition(result.start)
+                                } else {
+                                    searchCursor = pager.fileReader.contentStartBytePosition
+                                }
+                                highlightByteRange = result
+
+                                searchOptionsOfResult = searchOptions
+                                searchEntryOfResult = searchEntry
+                            },
+                            onClickNext = {
+                                if (isNavigationLocked) return@TextSearchBar
+
+                                val regex = currentSearchRegex() ?: return@TextSearchBar
+                                val pager = filePager ?: return@TextSearchBar
+                                if (pager.viewportStartBytePosition < fileViewState.fileLength) {
+                                    val searchStartBytePosition = if (isSearchResultStateCurrent() && !highlightByteRange.isEmpty()) {
+                                        searchCursor + 1
+                                    } else {
+                                        searchCursor
+                                    }
+                                    val result = try {
+                                        pager.searchAtAndForward(searchStartBytePosition, regex)
+                                    } catch (e: Throwable) {
+                                        e.printStackTrace()
+                                        return@TextSearchBar
+                                    }
+                                    if (!result.isEmpty()) {
+                                        searchCursor = result.start
+                                        println("search found at $result")
+                                        pager.moveToRowOfBytePosition(result.start)
+                                    } else {
+                                        searchCursor = fileViewState.fileLength
+                                    }
+                                    highlightByteRange = result
+
+                                    searchOptionsOfResult = searchOptions
+                                    searchEntryOfResult = searchEntry
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(colors.background)
+                                .padding(2.dp)
+                                .onKeyEvent { e ->
+//                        println("search onKeyEvent ${e.key}")
+                                    if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) {
+                                        isSearchBarVisible = false
+                                        viewerFocusRequester.requestFocus()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                        )
+                    }
+                },
+                shouldRequestFocus = !isSearchBarVisible,
                 modifier = Modifier.matchParentSize()
                     .focusRequester(viewerFocusRequester)
-            )
-        }
-
-        if (isSearchBarVisible) {
-            TextSearchBar(
-                key = selectedFilePath.replace("/", "\\/"),
-                text = searchEntry,
-                onTextChange = {
-                    searchEntry = it
-                    resetSearchResultState()
-                },
-                searchOptions = searchOptions,
-                isSearchBackwardDefault = isSearchBackwardDefault,
-                searchResultType = if (!isSearchResultStateCurrent()) {
-                    SearchResultType.NotYetSearch
-                } else if (highlightByteRange.isEmpty()) {
-                    SearchResultType.NoResult
-                } else {
-                    SearchResultType.SomeResult
-                },
-                onToggleRegex = {
-                    if (isNavigationLocked) return@TextSearchBar
-                    searchOptions = searchOptions.copy(isRegex = it)
-                    resetSearchResultState()
-                },
-                onToggleCaseSensitive = {
-                    if (isNavigationLocked) return@TextSearchBar
-                    searchOptions = searchOptions.copy(isCaseSensitive = it)
-                    resetSearchResultState()
-                },
-                onToggleWholeWord = {
-                    if (isNavigationLocked) return@TextSearchBar
-                    searchOptions = searchOptions.copy(isWholeWord = it)
-                    resetSearchResultState()
-                },
-                onClickPrev = {
-                    if (isNavigationLocked) return@TextSearchBar
-
-                    val regex = currentSearchRegex() ?: return@TextSearchBar
-                    val pager = filePager ?: return@TextSearchBar
-                    val result = try {
-                        pager.searchBackward(searchCursor, regex)
-                    } catch (e: Throwable) {
-                        e.printStackTrace()
-                        return@TextSearchBar
-                    }
-                    if (!result.isEmpty()) {
-                        searchCursor = result.start
-                        println("search found at $result")
-                        pager.moveToRowOfBytePosition(result.start)
-                    } else {
-                        searchCursor = pager.fileReader.contentStartBytePosition
-                    }
-                    highlightByteRange = result
-
-                    searchOptionsOfResult = searchOptions
-                    searchEntryOfResult = searchEntry
-                },
-                onClickNext = {
-                    if (isNavigationLocked) return@TextSearchBar
-
-                    val regex = currentSearchRegex() ?: return@TextSearchBar
-                    val pager = filePager ?: return@TextSearchBar
-                    if (pager.viewportStartBytePosition < fileViewState.fileLength) {
-                        val searchStartBytePosition = if (isSearchResultStateCurrent() && !highlightByteRange.isEmpty()) {
-                            searchCursor + 1
-                        } else {
-                            searchCursor
-                        }
-                        val result = try {
-                            pager.searchAtAndForward(searchStartBytePosition, regex)
-                        } catch (e: Throwable) {
-                            e.printStackTrace()
-                            return@TextSearchBar
-                        }
-                        if (!result.isEmpty()) {
-                            searchCursor = result.start
-                            println("search found at $result")
-                            pager.moveToRowOfBytePosition(result.start)
-                        } else {
-                            searchCursor = fileViewState.fileLength
-                        }
-                        highlightByteRange = result
-
-                        searchOptionsOfResult = searchOptions
-                        searchEntryOfResult = searchEntry
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.background)
-                    .padding(2.dp)
-                    .onKeyEvent { e ->
-//                        println("search onKeyEvent ${e.key}")
-                        if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) {
-                            isSearchBarVisible = false
-                            viewerFocusRequester.requestFocus()
-                            true
-                        } else {
-                            false
-                        }
-                    }
             )
         }
     }
