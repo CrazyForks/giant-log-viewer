@@ -218,6 +218,35 @@ abstract class GiantFileTextPager(
         return alignCharIndexToCharacterBoundary(window.text, low)
     }
 
+    private fun charIndexAtOrAfterBytePosition(window: DecodedTextWindow, bytePosition: Long): Int {
+        if (bytePosition <= window.byteRange.start) {
+            return 0
+        }
+        if (bytePosition >= window.byteRange.safeEndExclusive) {
+            return window.text.length
+        }
+
+        val index = charIndexAtOrBeforeBytePosition(window, bytePosition)
+        if (window.bytePositionAtCharIndex(index) >= bytePosition) {
+            return index
+        }
+        return nextCharIndex(window.text, index)
+    }
+
+    private fun nextCharIndex(text: CharSequence, index: Int): Int {
+        val safeIndex = alignCharIndexToCharacterBoundary(text, index)
+        return if (
+            safeIndex < text.length &&
+            text[safeIndex].isHighSurrogate() &&
+            safeIndex + 1 < text.length &&
+            text[safeIndex + 1].isLowSurrogate()
+        ) {
+            safeIndex + KOTLIN_CHARS_PER_SURROGATE_PAIR
+        } else {
+            (safeIndex + 1).coerceAtMost(text.length)
+        }
+    }
+
     private fun charBefore(bytePosition: Long): CharacterBefore? {
         if (bytePosition <= fileReader.contentStartBytePosition) {
             return null
@@ -483,24 +512,22 @@ abstract class GiantFileTextPager(
     }
 
     fun moveToNextPage() {
-        val numOfRowsInViewport = numOfRowsForPageMovement()
-        if (numOfRowsInViewport == 0L) {
-            return
-        }
-        moveToNextRow(numOfRowsInViewport)
+        moveToNextRow(numOfRowsForPageMovement().coerceAtLeast(1L))
     }
 
     fun moveToNextRow(numOfRowsToMove: Long) {
-        require(numOfRowsToMove > 0L)
+        require(numOfRowsToMove >= 0L)
+        if (numOfRowsToMove == 0L) {
+            return
+        }
         lock.write {
-            val numOfRowsInViewport = numOfRowsForPageMovement()
-            if (numOfRowsInViewport == 0L) {
-                return
-            }
-            val maxNumOfCharInViewport = numOfCharsInViewport()
+            val numOfRowsToRead = numOfRowsForPageMovement()
+                .coerceAtLeast(numOfRowsToMove)
+                .coerceAtLeast(1L)
+            val maxNumOfCharInViewport = maxNumOfCharInARow().toLong() * numOfRowsToRead
             val window = fileReader.readText(viewportStartBytePosition, readByteWindowSize(maxNumOfCharInViewport))
             val manyText = window.text
-            val maxRowsToRead = numOfRowsInViewport + 1L
+            val maxRowsToRead = numOfRowsToRead + 1L
             val lineSeparators = lineSeparatorRegex.findAll(manyText).take(maxRowsToRead.toClampedInt())
             var start = 0
             var rowStarts = lineSeparators.flatMap { // this works only if running sequential (NOT in parallel)
@@ -526,10 +553,6 @@ abstract class GiantFileTextPager(
     private fun findBytePositionOfPrevRow(numOfRowsToMove: Long, startBytePosition: Long): Long {
         require(numOfRowsToMove > 0L)
 //        lock.read {
-            val numOfRowsInViewport = numOfRowsForPageMovement()
-            if (numOfRowsInViewport == 0L) {
-                return startBytePosition // a dummy value to prevent changes
-            }
             var remainingRows = numOfRowsToMove
             var lineEndBytePosition = startBytePosition.coerceIn(fileReader.contentStartBytePosition, fileLength)
             while (lineEndBytePosition > fileReader.contentStartBytePosition) {
@@ -578,6 +601,10 @@ abstract class GiantFileTextPager(
     }
 
     internal fun moveToPrev(numOfRowsToMove: Long, startBytePosition: Long = viewportStartBytePosition) {
+        require(numOfRowsToMove >= 0L)
+        if (numOfRowsToMove == 0L) {
+            return
+        }
         lock.write {
             viewportStartBytePosition = findBytePositionOfPrevRow(numOfRowsToMove, startBytePosition)
             rebuildCacheIfInvalid()
@@ -585,11 +612,14 @@ abstract class GiantFileTextPager(
     }
 
     fun moveToPrevPage() {
-        val numOfRowsInViewport = numOfRowsForPageMovement()
-        moveToPrev(numOfRowsInViewport)
+        moveToPrev(numOfRowsForPageMovement().coerceAtLeast(1L))
     }
 
     fun moveToPrevRow(rows: Long = 1L) {
+        require(rows >= 0L)
+        if (rows == 0L) {
+            return
+        }
         moveToPrev(rows)
     }
 
@@ -697,12 +727,15 @@ abstract class GiantFileTextPager(
                 )
                 val byteRangeWithExtra = window.byteRange
 
-                val searchStartCharPosition = if (byteRangeWithExtra.start < readByteStart) 1 else 0
-                val searchResult = searchPattern.find(window.text, searchStartCharPosition)
+                val searchStartCharPosition = charIndexAtOrAfterBytePosition(window, readByteStart)
+                val searchResult = generateSequence(searchPattern.find(window.text, searchStartCharPosition)) {
+                    it.next()
+                }.firstOrNull {
+                    window.bytePositionAtCharIndex(it.range.first) >= startBytePosition
+                }
 
                 searchResult?.let {
                     val bytePositionStart = window.bytePositionAtCharIndex(it.range.first)
-                    assert(bytePositionStart >= startBytePosition)
                     val bytePositionEndExclusive = window.bytePositionAtCharIndex(it.range.safeEndExclusive)
                     return bytePositionStart ..< bytePositionEndExclusive
                 }

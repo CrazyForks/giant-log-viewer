@@ -176,6 +176,32 @@ class GiantFileTextPagerSearchForwardTest {
 
     @ParameterizedTest
     @EnumSource(TestFileEncoding::class)
+    fun regexSearchFromInsideEmojiStartsAtNextCharacter(encoding: TestFileEncoding) {
+        val emoji = "\uD83D\uDE04"
+        val fileContent = "A${emoji}D"
+        createTestFile(fileContent, encoding) { file ->
+            val fileReader = GiantFileReader(file.absolutePath, 16)
+            val pager = CoroutineGiantFileTextPager(
+                fileReader,
+                MonospaceBidirectionalTextLayouter(DivisibleWidthCharMeasurer(16f)),
+            )
+            pager.viewport = Viewport(width = 16 * 7, height = 12 * 5, density = 1f)
+
+            val emojiStart = encoding.bytePosition(fileContent, 1)
+            val afterEmoji = encoding.bytePosition(fileContent, 3)
+            val expected = afterEmoji..<encoding.bytePosition(fileContent, 4)
+            (emojiStart + 1..<afterEmoji).forEach { startBytePosition ->
+                assertEquals(
+                    expected,
+                    pager.searchAtAndForward(startBytePosition, Regex(".")),
+                    "${encoding.name}: search starts at $startBytePosition",
+                )
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
     fun unicodeAcrossMultipleBlocks(encoding: TestFileEncoding) {
         val random = Random(2347)
         val searchPattern = "喂你好😄😄!"
