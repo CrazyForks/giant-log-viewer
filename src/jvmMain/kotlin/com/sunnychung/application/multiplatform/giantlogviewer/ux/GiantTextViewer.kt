@@ -516,7 +516,7 @@ private fun GiantTextViewerStatusBar(
 
     val (viewportStartBytePosition, viewportEndBytePosition) = currentViewportByteRange(filePager, fileLength) // 0-based
         .let { (it.first + 1).coerceAtMost(fileLength) to (it.second + 1).coerceAtMost(fileLength) } // map to 1-based
-    val fullBytePositionText = "${numberFormat.format(viewportStartBytePosition)} ~ ${numberFormat.format(viewportEndBytePosition)} / ${numberFormat.format(fileLength)}"
+    val fullBytePositionText = "${numberFormat.format(viewportStartBytePosition)} ~ ${numberFormat.format(viewportEndBytePosition)} / ${numberFormat.format(fileLength)} B"
     val compactBytePositionText = "${numberFormat.format(viewportStartBytePosition)} / ${numberFormat.format(fileLength)}"
     val selectedEncodingLabel = if (selectedTextEncoding == TextEncoding.Auto) {
         "${selectedTextEncoding.displayName()} (${resolvedTextEncoding.displayName()})"
