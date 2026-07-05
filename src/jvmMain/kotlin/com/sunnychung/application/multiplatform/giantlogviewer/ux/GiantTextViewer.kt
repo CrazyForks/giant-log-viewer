@@ -103,6 +103,7 @@ fun GiantTextViewer(
     highlightByteRange: LongRange,
     onPagerReady: (GiantFileTextPager?) -> Unit,
     onNavigate: (bytePosition: Long) -> Unit,
+    onDocumentContentChanged: () -> Unit,
     onSearchRequest: (SearchMode) -> Unit,
 ) {
     val file = File(filePath)
@@ -144,6 +145,7 @@ fun GiantTextViewer(
         fileViewState.fileLength = file.length()
         lastModifiedMillis = file.lastModified()
         encodingReloadKey++
+        onDocumentContentChanged()
         onNavigate(0L)
     }
 
@@ -455,11 +457,19 @@ fun GiantTextViewer(
         if (fileViewState.isFollowing) {
             launch {
                 while (fileViewState.isFollowing) {
-                    fileViewState.fileLength = fileViewState.file.length()
-                    lastModifiedMillis = fileViewState.file.lastModified()
+                    val currentFileLength = fileViewState.file.length()
+                    val currentLastModifiedMillis = fileViewState.file.lastModified()
+                    val isFileContentChanged = currentFileLength != fileViewState.fileLength ||
+                        currentLastModifiedMillis != lastModifiedMillis
+
+                    fileViewState.fileLength = currentFileLength
+                    lastModifiedMillis = currentLastModifiedMillis
                     filePager.moveToTheLastRow()
                     filePager.moveToPrevRow(rows = (filePager.numOfRowsInViewport - 3L).coerceAtLeast(0L))
                     onNavigate(filePager.viewportStartBytePosition)
+                    if (isFileContentChanged) {
+                        onDocumentContentChanged()
+                    }
                     delay(1.seconds().millis)
                 }
             }

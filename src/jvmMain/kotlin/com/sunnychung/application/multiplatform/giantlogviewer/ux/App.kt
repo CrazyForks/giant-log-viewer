@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -177,6 +178,13 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
     var searchOptionsOfResult by remember { mutableStateOf<SearchOptions?>(null) }
     var searchEntryOfResult by remember { mutableStateOf("") }
 
+    fun resetSearchResultState() {
+        searchCursor = filePager?.viewportStartBytePosition ?: 0L
+        highlightByteRange = 0L .. -1L
+        searchOptionsOfResult = null
+        searchEntryOfResult = ""
+    }
+
     fun currentSearchRegex(): Regex? {
         if (searchEntry.isEmpty()) {
             return null
@@ -193,6 +201,10 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
             return pattern
         } catch (_: Throwable) {}
         return null
+    }
+
+    LaunchedEffect(selectedFilePath) {
+        resetSearchResultState()
     }
 
     Column(modifier.fillMaxSize()) {
@@ -250,6 +262,9 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
                 highlightByteRange = highlightByteRange,
                 onPagerReady = { filePager = it },
                 onNavigate = { searchCursor = it },
+                onDocumentContentChanged = {
+                    resetSearchResultState()
+                },
                 onSearchRequest = {
                     if (it == SearchMode.None) {
                         isSearchBarVisible = false
