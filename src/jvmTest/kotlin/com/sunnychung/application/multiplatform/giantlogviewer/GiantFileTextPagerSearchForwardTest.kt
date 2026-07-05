@@ -6,7 +6,6 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextP
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.util.DivisibleWidthCharMeasurer
-import com.sunnychung.lib.multiplatform.bigtext.extension.binarySearchForMinIndexOfValueAtLeast
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import java.io.File
@@ -294,22 +293,80 @@ private fun verifySearch(
     pager.viewport = Viewport(width = 16 * 7, height = 12 * 5, density = 1f)
     val fileSize = file.length()
     val searchRegex = searchPattern.toRegex()
+    val bytePositionsByCharIndex = charBytePositions(fileContent, encoding)
+    val matchRanges = forwardMatchRanges(fileContent, encoding, searchRegex)
     (searchRange ?: (0 .. fileSize)).forEach { i ->
         assertEquals(
-            firstBytePositionOf(fileContent, encoding, searchRegex, i),
+            firstBytePositionOf(matchRanges, bytePositionsByCharIndex, i),
             pager.searchAtAndForward(i, searchRegex).also {
-                println("search starts at $i found $it")
+//                println("search starts at $i found $it")
             },
             "search starts at $i"
         )
     }
 }
 
-private fun firstBytePositionOf(content: String, encoding: TestFileEncoding, regex: Regex, start: Long): LongRange {
-    val searchStart = binarySearchForMinIndexOfValueAtLeast(content.indices, start.toInt()) {
-        encoding.bytePosition(content, it).toInt()
-    }.takeIf { it >= 0 } ?: return GiantFileTextPager.NOT_FOUND
-    return regex.find(content, searchStart)?.let {
-        encoding.byteRange(content, it.range)
-    } ?: GiantFileTextPager.NOT_FOUND
+private data class ForwardMatch(
+    val charStart: Int,
+    val byteRange: LongRange,
+)
+
+private fun charBytePositions(content: String, encoding: TestFileEncoding): LongArray {
+    return LongArray(content.length + 1) {
+        encoding.bytePosition(content, it)
+    }
+}
+
+private fun forwardMatchRanges(content: String, encoding: TestFileEncoding, regex: Regex): List<ForwardMatch> {
+    val matches = mutableListOf<ForwardMatch>()
+    var startIndex = 0
+    while (startIndex <= content.length) {
+        val match = regex.find(content, startIndex) ?: break
+        matches += ForwardMatch(
+            charStart = match.range.first,
+            byteRange = encoding.byteRange(content, match.range),
+        )
+        startIndex = maxOf(startIndex + 1, match.range.first + 1)
+    }
+    return matches
+}
+
+private fun firstBytePositionOf(
+    matchRanges: List<ForwardMatch>,
+    charBytePositions: LongArray,
+    start: Long,
+): LongRange {
+    val searchStart = firstCharIndexAtOrAfterBytePosition(charBytePositions, start)
+        .takeIf { it >= 0 }
+        ?: return GiantFileTextPager.NOT_FOUND
+
+    var low = 0
+    var high = matchRanges.lastIndex
+    var result = -1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        if (matchRanges[mid].charStart < searchStart) {
+            low = mid + 1
+        } else {
+            result = mid
+            high = mid - 1
+        }
+    }
+    return matchRanges.getOrNull(result)?.byteRange ?: GiantFileTextPager.NOT_FOUND
+}
+
+private fun firstCharIndexAtOrAfterBytePosition(charBytePositions: LongArray, start: Long): Int {
+    var low = 0
+    var high = charBytePositions.lastIndex
+    var result = -1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        if (charBytePositions[mid] < start) {
+            low = mid + 1
+        } else {
+            result = mid
+            high = mid - 1
+        }
+    }
+    return result
 }

@@ -261,7 +261,7 @@ private fun verifySearch(
         assertEquals(
             lastBytePositionOf(matchRanges, i),
             pager.searchBackward(i, searchRegex).also {
-                println("search starts at $i found $it")
+//                println("search starts at $i found $it")
             },
             "search starts at $i"
         )
