@@ -207,6 +207,12 @@ class GiantFileReader(
     private fun resolveTextEncoding(): ResolvedTextEncoding {
         val header = readRawBytes(0L, TEXT_ENCODING_PROBE_BYTES).first
         return when {
+            textEncoding == TextEncoding.Utf8WithoutBom -> utf8Encoding(bomLength = 0)
+            textEncoding == TextEncoding.Utf8WithBom -> utf8Encoding(bomLength = UTF8_BOM_BYTE_COUNT)
+            textEncoding == TextEncoding.Utf16LEWithoutBom -> utf16LEEncoding(bomLength = 0)
+            textEncoding == TextEncoding.Utf16LEWithBom -> utf16LEEncoding(bomLength = UTF16_BOM_BYTE_COUNT)
+            textEncoding == TextEncoding.Utf16BEWithoutBom -> utf16BEEncoding(bomLength = 0)
+            textEncoding == TextEncoding.Utf16BEWithBom -> utf16BEEncoding(bomLength = UTF16_BOM_BYTE_COUNT)
             textEncoding == TextEncoding.Utf8 -> utf8Encoding(bomLength = if (header.hasUtf8Bom()) UTF8_BOM_BYTE_COUNT else 0)
             textEncoding == TextEncoding.Utf16LE -> utf16LEEncoding(bomLength = if (header.hasUtf16LEBom()) UTF16_BOM_BYTE_COUNT else 0)
             textEncoding == TextEncoding.Utf16BE -> utf16BEEncoding(bomLength = if (header.hasUtf16BEBom()) UTF16_BOM_BYTE_COUNT else 0)
