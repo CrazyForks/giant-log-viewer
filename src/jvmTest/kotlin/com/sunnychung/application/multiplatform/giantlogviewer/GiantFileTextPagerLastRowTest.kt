@@ -8,7 +8,10 @@ import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceB
 import com.sunnychung.application.multiplatform.giantlogviewer.util.DivisibleWidthCharMeasurer
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import java.io.File
+import java.io.FileOutputStream
 import java.io.Writer
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.Test
@@ -158,10 +161,11 @@ class GiantFileTextPagerLastRowTest {
         }
     }
 
-    @Test
-    fun singleRow() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun singleRow(encoding: TestFileEncoding) {
         val fileContent = "ab"
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(
                 fileReader, MonospaceBidirectionalTextLayouter(
@@ -171,7 +175,7 @@ class GiantFileTextPagerLastRowTest {
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 19 + 1, density = 1f)
 
             pager.moveToTheLastRow()
-            assertEquals(0L, pager.viewportStartBytePosition)
+            assertEquals(encoding.contentStartBytePosition, pager.viewportStartBytePosition)
             assertListOfStringStartWith(
                 listOf(fileContent),
                 pager.textInViewport,
@@ -180,8 +184,9 @@ class GiantFileTextPagerLastRowTest {
         }
     }
 
-    @Test
-    fun singleLongLine() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun singleLongLine(encoding: TestFileEncoding) {
         val random = Random(1212)
         val fileContent = (0 ..< 1234567).joinToString("") {
             when (val r = random.nextInt(36)) {
@@ -189,7 +194,7 @@ class GiantFileTextPagerLastRowTest {
                 else -> ('0'.code + (r - 26)).toChar().toString()
             }
         }
-        createTestFile(fileContent) { file ->
+        createTestFile(fileContent, encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(
                 fileReader, MonospaceBidirectionalTextLayouter(
@@ -199,16 +204,18 @@ class GiantFileTextPagerLastRowTest {
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 19 + 1, density = 1f)
 
             pager.moveToTheLastRow()
-            assertEquals(file.length() - (file.length() % 23L), pager.viewportStartBytePosition)
+            val expectedStartCharPosition = fileContent.length - (fileContent.length % 23)
+            assertEquals(encoding.bytePosition(fileContent, expectedStartCharPosition), pager.viewportStartBytePosition)
             val textInViewport: List<CharSequence> = pager.textInViewport
             assertEquals(1, textInViewport.size)
-            assertEquals((file.length() % 23L).toInt(), textInViewport.first().length)
+            assertEquals(fileContent.length % 23, textInViewport.first().length)
         }
     }
 
-    @Test
-    fun emptyFile() {
-        createTestFile("") { file ->
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun emptyFile(encoding: TestFileEncoding) {
+        createTestFile("", encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(
                 fileReader, MonospaceBidirectionalTextLayouter(
@@ -218,7 +225,7 @@ class GiantFileTextPagerLastRowTest {
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 19 + 1, density = 1f)
 
             pager.moveToTheLastRow()
-            assertEquals(0L, pager.viewportStartBytePosition)
+            assertEquals(encoding.contentStartBytePosition, pager.viewportStartBytePosition)
             assertListOfStringStartWith(
                 emptyList(),
                 pager.textInViewport,
@@ -227,9 +234,10 @@ class GiantFileTextPagerLastRowTest {
         }
     }
 
-    @Test
-    fun onlyANewLine() {
-        createTestFile("\n") { file ->
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun onlyANewLine(encoding: TestFileEncoding) {
+        createTestFile("\n", encoding) { file ->
             val fileReader = GiantFileReader(file.absolutePath)
             val pager = CoroutineGiantFileTextPager(
                 fileReader, MonospaceBidirectionalTextLayouter(
@@ -239,7 +247,7 @@ class GiantFileTextPagerLastRowTest {
             pager.viewport = Viewport(width = 16 * 23, height = 12 * 19 + 1, density = 1f)
 
             pager.moveToTheLastRow()
-            assertEquals(1L, pager.viewportStartBytePosition)
+            assertEquals(encoding.bytePosition("\n", 1), pager.viewportStartBytePosition)
             assertListOfStringStartWith(
                 emptyList(),
                 pager.textInViewport,
@@ -248,15 +256,16 @@ class GiantFileTextPagerLastRowTest {
         }
     }
 
-    @Test
-    fun largeUnicodeFileSimple() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun largeUnicodeFileSimple(encoding: TestFileEncoding) {
         val random = Random(123456)
         val contentLength = 100 * 1024 * 1024
 
         val lastTestContent = "中文字串🫡"
         val lastContent = "\n$lastTestContent"
 
-        createTestFile(contentWriter = {
+        createTestFile(encoding = encoding, contentWriter = {
             val charset = "\n零一二三四五六七八九ABCDabc".map { it.toString() } + listOf("😄", "😄", "😇", "🤣", "🤯", "🤬", "🫡", "🫠", "😵")
             (0 ..< contentLength - lastContent.length).forEach {
                 val charToWrite = charset[random.nextInt(0, charset.size)]
@@ -276,7 +285,7 @@ class GiantFileTextPagerLastRowTest {
             val startTime = KInstant.now()
             try {
                 pager.moveToTheLastRow()
-                assertEquals(fileLength - lastTestContent.toByteArray(Charsets.UTF_8).size, pager.viewportStartBytePosition)
+                assertEquals(fileLength - lastTestContent.toByteArray(encoding.charset).size, pager.viewportStartBytePosition)
                 assertListOfStringStartWith(
                     listOf(lastTestContent),
                     pager.textInViewport,
@@ -288,8 +297,9 @@ class GiantFileTextPagerLastRowTest {
         }
     }
 
-    @Test
-    fun largeUnicodeFileEndWithLongRow() {
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun largeUnicodeFileEndWithLongRow(encoding: TestFileEncoding) {
         val random = Random(123456)
         val contentLength = 100 * 1024 * 1024
 
@@ -297,7 +307,7 @@ class GiantFileTextPagerLastRowTest {
         val lastTestContent = "你好啊".repeat((23 / 2) * 100) + lastRowContent
         val lastContent = "\n$lastTestContent"
 
-        createTestFile(contentWriter = {
+        createTestFile(encoding = encoding, contentWriter = {
             val charset = "\n零一二三四五六七八九ABCDabc".map { it.toString() } + listOf("😄", "😄", "😇", "🤣", "🤯", "🤬", "🫡", "🫠", "😵")
             (0 ..< contentLength - lastContent.length).forEach {
                 val charToWrite = charset[random.nextInt(0, charset.size)]
@@ -317,7 +327,7 @@ class GiantFileTextPagerLastRowTest {
             val startTime = KInstant.now()
             try {
                 pager.moveToTheLastRow()
-                assertEquals(fileLength - lastRowContent.toByteArray(Charsets.UTF_8).size, pager.viewportStartBytePosition)
+                assertEquals(fileLength - lastRowContent.toByteArray(encoding.charset).size, pager.viewportStartBytePosition)
                 assertListOfStringStartWith(
                     listOf(lastRowContent),
                     pager.textInViewport,
@@ -330,10 +340,15 @@ class GiantFileTextPagerLastRowTest {
     }
 }
 
-fun createTestFile(contentWriter: Writer.() -> Unit, testBlock: (File) -> Unit) {
+fun createTestFile(
+    encoding: TestFileEncoding = TestFileEncoding.Utf8,
+    contentWriter: Writer.() -> Unit,
+    testBlock: (File) -> Unit,
+) {
     val file = File("build/test", "${UUID.randomUUID()}.txt")
     file.parentFile.mkdirs()
-    file.bufferedWriter(Charsets.UTF_8).use {
+    file.writeBytes(encoding.bom)
+    FileOutputStream(file, true).bufferedWriter(encoding.charset).use {
         it.contentWriter()
     }
     try {
