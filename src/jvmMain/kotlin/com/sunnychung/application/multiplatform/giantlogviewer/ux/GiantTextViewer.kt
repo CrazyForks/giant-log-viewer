@@ -45,6 +45,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -166,6 +167,7 @@ fun GiantTextViewer(
     val focusRequester = remember { FocusRequester() }
 
     var draggedPoint by remember { mutableStateOf<Offset>(Offset.Zero) }
+    var isRangeExtensionGesture by remember { mutableStateOf(false) }
     var dragStartBytePosition by remember(filePath, refreshKey, encodingReloadKey) { mutableLongStateOf(0L) }
     var dragEndBytePosition by remember(filePath, refreshKey, encodingReloadKey) { mutableLongStateOf(0L) }
 
@@ -232,6 +234,31 @@ fun GiantTextViewer(
         filePager.action()
         onNavigate(filePager.viewportStartBytePosition)
         return true
+    }
+
+    fun clearSelection() {
+        dragStartBytePosition = 0L
+        dragEndBytePosition = 0L
+    }
+
+    fun restartSelectionAt(point: Offset) {
+        val bytePosition = findBytePositionByCoordinatePx(filePager, point)
+        dragStartBytePosition = bytePosition
+        dragEndBytePosition = bytePosition
+    }
+
+    fun extendSelectionTo(point: Offset) {
+        dragEndBytePosition = findBytePositionByCoordinatePx(filePager, point)
+    }
+
+    fun beginSelectionGesture(point: Offset, isRangeExtension: Boolean) {
+        draggedPoint = point
+        isRangeExtensionGesture = isRangeExtension && !selection.isEmpty()
+        if (isRangeExtensionGesture) {
+            extendSelectionTo(point)
+        } else {
+            restartSelectionAt(point)
+        }
     }
 
     Column(modifier
@@ -302,9 +329,9 @@ fun GiantTextViewer(
                     // not sure which Compose bug leading to require implementing "click to focus" manually
                     focusRequester.requestFocus()
 
-                    // clear selection
-                    dragStartBytePosition = 0L
-                    dragEndBytePosition = 0L
+                    if (!it.keyboardModifiers.isShiftPressed) {
+                        clearSelection()
+                    }
                 }
         ) {
             val startTime = KInstant.now()
@@ -317,24 +344,40 @@ fun GiantTextViewer(
                 }
                 .onDrag(
                     onDragStart = {
-                        draggedPoint = it
-                        dragStartBytePosition = findBytePositionByCoordinatePx(filePager, it)
+                        beginSelectionGesture(it, isRangeExtension = isRangeExtensionGesture)
                     },
                     onDrag = {
                         draggedPoint += it
-                        dragEndBytePosition = findBytePositionByCoordinatePx(filePager, draggedPoint)
+                        extendSelectionTo(draggedPoint)
                     },
                     onDragEnd = {
                         draggedPoint = Offset.Zero
+                        isRangeExtensionGesture = false
                     }
                 )
                 .scrollable(scrollState, Orientation.Vertical)
             ) {
+                fun handleSelectionPress(point: Offset, isRangeExtension: Boolean) {
+                    if (isRangeExtension && !selection.isEmpty()) {
+                        beginSelectionGesture(point, isRangeExtension = true)
+                    }
+                }
+
                 val textToDisplay: List<CharSequence> = filePager.textInViewport
                 val bytePositionsOfDisplay: List<Long> = filePager.startBytePositionsInViewport
 //        println("textToDisplay:\n$textToDisplay")
                 val lineHeight = charMeasurer.getRowHeight()
-                Canvas(modifier = Modifier.matchParentSize()) {
+                Canvas(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .onPointerEvent(eventType = PointerEventType.Press) {
+                            val change = it.changes.firstOrNull() ?: return@onPointerEvent
+                            handleSelectionPress(
+                                point = change.position,
+                                isRangeExtension = it.keyboardModifiers.isShiftPressed,
+                            )
+                        }
+                ) {
 //                with(density) {
                     textToDisplay.forEachIndexed { rowRelativeIndex, row ->
                         var unicodeSequence: CharSequence? = null
