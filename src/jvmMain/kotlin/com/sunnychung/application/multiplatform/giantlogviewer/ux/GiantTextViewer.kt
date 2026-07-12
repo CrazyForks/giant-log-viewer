@@ -72,6 +72,7 @@ import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.dialogs.openFileSaver
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.floorMod
+import com.sunnychung.application.multiplatform.giantlogviewer.io.BYTES_PER_MIB
 import com.sunnychung.application.multiplatform.giantlogviewer.io.ComposeGiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.copyFileByteRange
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
@@ -109,6 +110,7 @@ import kotlin.math.floor
 
 private const val SELECTION_AUTOSCROLL_INTERVAL_MILLIS = 50L
 private const val SELECTION_AUTOSCROLL_MAX_ROWS_PER_TICK = 8L
+private const val TEXT_COPY_LIMIT_BYTES = 5 * BYTES_PER_MIB
 private const val TOAST_DURATION_MILLIS = 3_000L
 
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
@@ -248,9 +250,9 @@ fun GiantTextViewer(
         if (!selection.isEmpty()) {
             val selectedLength = selection.endExclusive - selection.start
             val requestedCopyLength = selectedLength
-                .coerceAtMost(fileReader.blockSize.toLong())
+                .coerceAtMost(TEXT_COPY_LIMIT_BYTES.toLong())
                 .toInt()
-            val window = fileReader.readText(selection.start, requestedCopyLength)
+            val window = fileReader.readTextUncached(selection.start, requestedCopyLength)
             val copiedLength = window.byteRange.endExclusive - window.byteRange.start
             clipboardManager.setText(AnnotatedString(text = window.text))
             if (selectedLength > copiedLength) {
@@ -260,7 +262,7 @@ fun GiantTextViewer(
     }
 
     fun canCopySelectionAsText(): Boolean {
-        return !selection.isEmpty() && selection.endExclusive - selection.start <= fileReader.blockSize.toLong()
+        return !selection.isEmpty() && selection.endExclusive - selection.start <= TEXT_COPY_LIMIT_BYTES.toLong()
     }
 
     fun copySelectionToFile(destination: File) {

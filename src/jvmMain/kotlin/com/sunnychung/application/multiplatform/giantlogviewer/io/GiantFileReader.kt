@@ -173,6 +173,39 @@ class GiantFileReader(
         return out.toByteArray() to (start ..< current)
     }
 
+    private fun readRawBytesDirect(
+        file: RandomAccessFile,
+        startBytePosition: Long,
+        length: Int,
+    ): Pair<ByteArray, LongRange> {
+        if (length <= 0) {
+            return ByteArray(0) to (startBytePosition ..< startBytePosition)
+        }
+
+        val fileSize = fileLength
+        val start = startBytePosition.coerceIn(0L, fileSize)
+        val endExclusive = (start + length.toLong()).coerceAtMost(fileSize)
+        if (endExclusive <= start) {
+            return ByteArray(0) to (start ..< start)
+        }
+
+        val bytes = ByteArray((endExclusive - start).toInt())
+        file.seek(start)
+        var offset = 0
+        while (offset < bytes.size) {
+            val bytesRead = file.read(bytes, offset, bytes.size - offset)
+            if (bytesRead < 0) {
+                break
+            }
+            offset += bytesRead
+        }
+        return if (offset == bytes.size) {
+            bytes to (start ..< endExclusive)
+        } else {
+            bytes.copyOf(offset) to (start ..< start + offset.toLong())
+        }
+    }
+
     internal fun readAsByteArrayOutputStream(startBytePosition: Long, length: Int): Pair<ByteArrayOutputStream2, LongRange> {
         val window = readText(startBytePosition, length)
         val bytes = window.text.toByteArray(resolvedTextEncoding.charset)
@@ -192,6 +225,18 @@ class GiantFileReader(
      */
     fun readText(startBytePosition: Long, length: Int): DecodedTextWindow {
         return codec.readText(startBytePosition, length, fileLength, ::readRawBytes)
+    }
+
+    /**
+     * Same decoding contract as `readText`, but reads bytes through a separate file handle instead
+     * of the block cache. This is intended for large one-shot reads such as clipboard copy.
+     */
+    fun readTextUncached(startBytePosition: Long, length: Int): DecodedTextWindow {
+        RandomAccessFile(filePath, "r").use { directFile ->
+            return codec.readText(startBytePosition, length, fileLength) { start, readLength ->
+                readRawBytesDirect(directFile, start, readLength)
+            }
+        }
     }
 
     fun readString(startBytePosition: Long, length: Int): Pair<String, LongRange> {
