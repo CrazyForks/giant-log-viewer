@@ -11,6 +11,7 @@ _Changes since 1.2.0_
 ### Added
 - Follow new appends to the end of the opened file (Shift-F)
 - Support UTF-8 with BOM and UTF-16 encodings in additional to current encoding support of UTF-8 without BOM
+- Long lines (>= 1 MB per line) are now supported
 - Status bar, which shows current byte range, last modified date time and current encoding
 - Shift-Click to extend selection
 - Dragging out of view to scroll and extend selection
