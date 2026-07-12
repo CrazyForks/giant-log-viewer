@@ -387,6 +387,15 @@ abstract class GiantFileTextPager(
         return nextCharIndex(window.text, index)
     }
 
+    private fun isGraphemeBoundary(text: CharSequence, index: Int): Boolean {
+        return GraphemeClusters.boundaryAtOrBefore(text, index) == index
+    }
+
+    private fun isValidSearchMatch(text: CharSequence, match: MatchResult): Boolean {
+        return isGraphemeBoundary(text, match.range.first) &&
+            isGraphemeBoundary(text, match.range.safeEndExclusive)
+    }
+
     private fun nextCharIndex(text: CharSequence, index: Int): Int {
         return GraphemeClusters.nextBoundary(text, index)
     }
@@ -895,7 +904,7 @@ abstract class GiantFileTextPager(
                 var lastMatchBeforeStart: MatchResult? = null
                 searchPattern.findAll(manyText).forEach {
                     val bytePositionStart = window.bytePositionAtCharIndex(it.range.first)
-                    if (bytePositionStart < startBytePosition) {
+                    if (bytePositionStart < startBytePosition && isValidSearchMatch(manyText, it)) {
                         lastMatchBeforeStart = it
                     }
                 }
@@ -941,7 +950,8 @@ abstract class GiantFileTextPager(
                 val searchResult = generateSequence(searchPattern.find(window.text, searchStartCharPosition)) {
                     it.next()
                 }.firstOrNull {
-                    window.bytePositionAtCharIndex(it.range.first) >= startBytePosition
+                    window.bytePositionAtCharIndex(it.range.first) >= startBytePosition &&
+                        isValidSearchMatch(window.text, it)
                 }
 
                 searchResult?.let {
