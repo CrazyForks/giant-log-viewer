@@ -14,10 +14,12 @@ _Changes since 1.2.0_
 - Status bar, which shows current byte range, last modified date time and current encoding
 - Shift-Click to extend selection
 - Dragging out of view to scroll and extend selection
+- Copy selection to a file
 
 ### Changed
 - New appends to the opened file are not automatically followed anymore
 - After going pass the last search result, searching reversely would first visit the last search result
+- Copy text length limit is increased from 1 MB to 5 MB
 
 ### Fixed
 - Mouse scrolling did not reposition the search cursor correctly

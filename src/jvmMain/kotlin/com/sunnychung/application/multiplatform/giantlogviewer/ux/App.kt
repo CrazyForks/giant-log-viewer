@@ -29,6 +29,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.onExternalDrag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -56,6 +58,7 @@ import java.net.URI
 import java.util.regex.Pattern
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 fun App() {
     var selectedFileName by remember { mutableStateOf("") }
     var isShowHelpWindow by remember { mutableStateOf(false) }
@@ -68,6 +71,7 @@ fun App() {
 
     var selectedFilePath by remember { mutableStateOf("") }
     var fileViewState: FileViewState by remember(selectedFilePath) { mutableStateOf(FileViewState(File(selectedFilePath))) }
+    var dismissSelectionMenuKey by remember { mutableIntStateOf(0) }
 
     print("App recompose - $themePreference")
 
@@ -79,7 +83,10 @@ fun App() {
         Column(Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().height(30.dp)
-                    .background(colors.menuBarBackground),
+                    .background(colors.menuBarBackground)
+                    .onPointerEvent(eventType = PointerEventType.Press) {
+                        dismissSelectionMenuKey++
+                    },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppImage(
@@ -137,6 +144,7 @@ fun App() {
 
             AppMainContent(
                 fileViewState = fileViewState,
+                dismissSelectionMenuKey = dismissSelectionMenuKey,
                 onSelectFile = {
                     selectedFileName = it?.name ?: ""
                     selectedFilePath = it?.path ?: ""
@@ -153,7 +161,12 @@ fun App() {
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileViewState, onSelectFile: (File?) -> Unit) {
+private fun AppMainContent(
+    modifier: Modifier = Modifier,
+    fileViewState: FileViewState,
+    dismissSelectionMenuKey: Int,
+    onSelectFile: (File?) -> Unit,
+) {
     val colors = LocalColor.current
 
     val isNavigationLocked = fileViewState.isFollowing
@@ -282,6 +295,7 @@ private fun AppMainContent(modifier: Modifier = Modifier, fileViewState: FileVie
                         isSearchBackwardDefault = (it == SearchMode.Backward)
                     }
                 },
+                dismissSelectionMenuKey = dismissSelectionMenuKey,
                 bottomContent = {
                     if (isSearchBarVisible) {
                         TextSearchBar(
