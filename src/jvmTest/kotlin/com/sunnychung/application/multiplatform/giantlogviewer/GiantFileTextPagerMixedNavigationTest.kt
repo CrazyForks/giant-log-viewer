@@ -62,6 +62,77 @@ class GiantFileTextPagerMixedNavigationTest {
 
     @ParameterizedTest
     @EnumSource(TestFileEncoding::class)
+    fun emojiSequencesWrapAndNavigateAsSingleDisplayUnits(encoding: TestFileEncoding) {
+        val clusters = listOf("A", "👆🏿", "B", "👨‍👩‍👧‍👦", "C", "🇭🇰", "D", "1️⃣", "E")
+        val fileContent = clusters.joinToString("")
+        createTestFile(fileContent, encoding) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = CoroutineGiantFileTextPager(
+                fileReader,
+                MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(10f)),
+            )
+            pager.viewport = Viewport(width = 20, height = 12 * 6, density = 1f)
+
+            val expectedRows = clusters.chunked(2).map { it.joinToString("") }
+            assertEquals(expectedRows, pager.textInViewport.take(expectedRows.size).map { it.toString() })
+
+            val expectedRowStartCharIndexes = expectedRows.runningFold(0) { index, row -> index + row.length }
+                .dropLast(1)
+            assertEquals(
+                expectedRowStartCharIndexes.map { encoding.bytePosition(fileContent, it) },
+                pager.startBytePositionsInViewport.take(expectedRows.size),
+            )
+
+            pager.moveToNextRow()
+            assertEquals(encoding.bytePosition(fileContent, expectedRowStartCharIndexes[1]), pager.viewportStartBytePosition)
+            assertEquals(expectedRows.drop(1), pager.textInViewport.take(expectedRows.size - 1).map { it.toString() })
+
+            pager.moveToPrevRow()
+            assertEquals(encoding.contentStartBytePosition, pager.viewportStartBytePosition)
+            assertEquals(expectedRows, pager.textInViewport.take(expectedRows.size).map { it.toString() })
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
+    fun longEmojiSequenceLineKeepsForwardAndBackwardRowStartsConsistent(encoding: TestFileEncoding) {
+        val repeatedClusters = List(43) { listOf("🇭🇰", "👨‍👩‍👧‍👦", "1️⃣") }.flatten()
+        val fileContent = repeatedClusters.joinToString("")
+        val clustersPerRow = 43
+        createTestFile(fileContent, encoding) { file ->
+            val fileReader = GiantFileReader(file.absolutePath)
+            val pager = CoroutineGiantFileTextPager(
+                fileReader,
+                MonospaceBidirectionalTextLayouter(FixedWidthCharMeasurer(10f)),
+            )
+            pager.viewport = Viewport(width = 10 * clustersPerRow, height = 12 * 4, density = 1f)
+
+            val expectedRows = repeatedClusters.chunked(clustersPerRow).map { it.joinToString("") }
+            val expectedRowStartCharIndexes = expectedRows.runningFold(0) { index, row -> index + row.length }
+                .dropLast(1)
+            val expectedRowStartBytePositions = expectedRowStartCharIndexes.map {
+                encoding.bytePosition(fileContent, it)
+            }
+
+            assertEquals(expectedRows, pager.textInViewport.take(expectedRows.size).map { it.toString() })
+            assertEquals(expectedRowStartBytePositions, pager.startBytePositionsInViewport.take(expectedRows.size))
+
+            pager.moveToNextRow(2L)
+            assertEquals(expectedRowStartBytePositions[2], pager.viewportStartBytePosition)
+            assertEquals(expectedRows[2], pager.textInViewport.first().toString())
+
+            pager.moveToPrevRow()
+            assertEquals(expectedRowStartBytePositions[1], pager.viewportStartBytePosition)
+            assertEquals(expectedRows[1], pager.textInViewport.first().toString())
+
+            pager.moveToPrevRow()
+            assertEquals(expectedRowStartBytePositions[0], pager.viewportStartBytePosition)
+            assertEquals(expectedRows[0], pager.textInViewport.first().toString())
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(TestFileEncoding::class)
     fun moveMultipleRowsForwardAndBackward(encoding: TestFileEncoding) {
         val fileContent = "r0\nr1\nr2\nr3\n"
         createTestFile(fileContent, encoding) { file ->
