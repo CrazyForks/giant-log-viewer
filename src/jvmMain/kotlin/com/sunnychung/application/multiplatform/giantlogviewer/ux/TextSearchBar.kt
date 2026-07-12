@@ -80,6 +80,7 @@ fun TextSearchBar(
             textStyle = TextStyle(
                 fontFamily = LocalFont.current.monospaceFontFamily,
             ),
+            maxInputLength = 512 * 1024, // 512 KB
             maxLines = 1,
             singleLine = true, // not allow '\n'
             contentPadding = PaddingValues(4.dp),
