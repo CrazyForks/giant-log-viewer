@@ -182,11 +182,13 @@ class GiantFileReader(
     }
 
     /**
-     * It is not guaranteed that exactly `length` bytes would be read.
+     * Reads at least `length` bytes when possible, then expands the decoded range as needed so the
+     * returned text does not start or end inside a multi-byte character. File bounds may make the
+     * returned range shorter than `length`.
      *
      * @param startBytePosition 0-based, in bytes
-     * @param length in bytes
-     * @return pair of decoded string and the range of absolute byte positions of the decoded string
+     * @param length minimum bytes to include before character-boundary adjustment
+     * @return decoded text and the absolute byte range that produced it
      */
     fun readText(startBytePosition: Long, length: Int): DecodedTextWindow {
         return codec.readText(startBytePosition, length, fileLength, ::readRawBytes)

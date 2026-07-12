@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
@@ -28,6 +29,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Alignment
@@ -45,6 +47,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -55,14 +58,22 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.absolutePath
+import io.github.vinceglb.filekit.dialogs.openFileSaver
+import com.sunnychung.application.multiplatform.giantlogviewer.extension.floorMod
 import com.sunnychung.application.multiplatform.giantlogviewer.io.ComposeGiantFileTextPager
+import com.sunnychung.application.multiplatform.giantlogviewer.io.copyFileByteRange
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileReader
 import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.ResolvedTextEncoding
@@ -72,6 +83,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.displayName
 import com.sunnychung.application.multiplatform.giantlogviewer.io.selectableTextEncodings
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
+import com.sunnychung.application.multiplatform.giantlogviewer.util.formatByteSize
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.AppFont
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
@@ -85,8 +97,10 @@ import com.sunnychung.lib.multiplatform.bigtext.util.string
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import com.sunnychung.lib.multiplatform.kdatetime.extension.milliseconds
 import com.sunnychung.lib.multiplatform.kdatetime.extension.seconds
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
@@ -95,6 +109,7 @@ import kotlin.math.floor
 
 private const val SELECTION_AUTOSCROLL_INTERVAL_MILLIS = 50L
 private const val SELECTION_AUTOSCROLL_MAX_ROWS_PER_TICK = 8L
+private const val TOAST_DURATION_MILLIS = 3_000L
 
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, TemporaryBigTextApi::class)
@@ -109,6 +124,7 @@ fun GiantTextViewer(
     onNavigate: (bytePosition: Long) -> Unit,
     onDocumentContentChanged: () -> Unit,
     onSearchRequest: (SearchMode) -> Unit,
+    dismissSelectionMenuKey: Int = 0,
     bottomContent: @Composable () -> Unit = {},
     shouldRequestFocus: Boolean = true,
 ) {
@@ -166,7 +182,7 @@ fun GiantTextViewer(
     filePager.fileLength = fileLength
 
     val clipboardManager = LocalClipboardManager.current
-
+    val coroutineScope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
 
     var draggedPoint by remember { mutableStateOf<Offset>(Offset.Zero) }
@@ -174,6 +190,11 @@ fun GiantTextViewer(
     var isRangeExtensionGesture by remember { mutableStateOf(false) }
     var dragStartBytePosition by remember(filePath, refreshKey, encodingReloadKey) { mutableLongStateOf(0L) }
     var dragEndBytePosition by remember(filePath, refreshKey, encodingReloadKey) { mutableLongStateOf(0L) }
+    var isSelectionMenuVisible by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
+    var selectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(Offset.Zero) }
+    var pendingSelectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Offset?>(null) }
+    var selectedSelectionMenuItemIndex by remember(filePath, refreshKey, encodingReloadKey) { mutableIntStateOf(0) }
+    var toastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
 
     val (contentWidth, isContentWidthLatest) = debouncedStateOf(200.milliseconds(), tolerateCount = 1, filePager) {
         contentComponentWidth
@@ -225,11 +246,51 @@ fun GiantTextViewer(
 
     fun copySelection() {
         if (!selection.isEmpty()) {
-            val length = (selection.endExclusive - selection.start)
-                .coerceAtMost(fileReader.blockSize.toLong()) // TODO support copying across blocks
+            val selectedLength = selection.endExclusive - selection.start
+            val requestedCopyLength = selectedLength
+                .coerceAtMost(fileReader.blockSize.toLong())
                 .toInt()
-            val (text, _) = fileReader.readString(selection.start, length)
-            clipboardManager.setText(AnnotatedString(text = text))
+            val window = fileReader.readText(selection.start, requestedCopyLength)
+            val copiedLength = window.byteRange.endExclusive - window.byteRange.start
+            clipboardManager.setText(AnnotatedString(text = window.text))
+            if (selectedLength > copiedLength) {
+                toastMessage = "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes"
+            }
+        }
+    }
+
+    fun canCopySelectionAsText(): Boolean {
+        return !selection.isEmpty() && selection.endExclusive - selection.start <= fileReader.blockSize.toLong()
+    }
+
+    fun copySelectionToFile(destination: File) {
+        copyFileByteRange(
+            source = file,
+            destination = destination,
+            byteRange = selection,
+        )
+    }
+
+    suspend fun chooseSelectionDestination(): File? {
+        val selectedFile: PlatformFile = FileKit.openFileSaver(
+            suggestedName = "${file.name}.selection",
+            extension = "txt",
+        ) ?: return null
+        return File(selectedFile.absolutePath())
+    }
+
+    fun copySelectionToFileWithPrompt() {
+        coroutineScope.launch {
+            val destination = chooseSelectionDestination() ?: return@launch
+            try {
+                withContext(Dispatchers.IO) {
+                    copySelectionToFile(destination)
+                }
+                toastMessage = "Selection copied to ${destination.name}"
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                toastMessage = "Failed to copy selection to a file"
+            }
         }
     }
 
@@ -266,16 +327,20 @@ fun GiantTextViewer(
     fun clearSelection() {
         dragStartBytePosition = 0L
         dragEndBytePosition = 0L
+        isSelectionMenuVisible = false
+        pendingSelectionMenuPosition = null
     }
 
     fun restartSelectionAt(point: Offset) {
         val bytePosition = findBytePositionByCoordinatePx(filePager, point)
         dragStartBytePosition = bytePosition
         dragEndBytePosition = bytePosition
+        selectionMenuPosition = point
     }
 
     fun extendSelectionTo(point: Offset) {
         dragEndBytePosition = findBytePositionByCoordinatePx(filePager, point)
+        selectionMenuPosition = point
     }
 
     /**
@@ -285,6 +350,8 @@ fun GiantTextViewer(
     fun beginSelectionGesture(point: Offset, isRangeExtension: Boolean) {
         draggedPoint = point
         isSelectionDragInProgress = true
+        isSelectionMenuVisible = false
+        pendingSelectionMenuPosition = null
         isRangeExtensionGesture = isRangeExtension && !selection.isEmpty()
         if (isRangeExtensionGesture) {
             extendSelectionTo(point)
@@ -297,12 +364,15 @@ fun GiantTextViewer(
         draggedPoint = point
         isRangeExtensionGesture = true
         extendSelectionTo(point)
+        pendingSelectionMenuPosition = point
     }
 
     fun stopSelectionGesture() {
         draggedPoint = Offset.Zero
         isSelectionDragInProgress = false
         isRangeExtensionGesture = false
+        isSelectionMenuVisible = !selection.isEmpty()
+        selectedSelectionMenuItemIndex = 0
     }
 
     /**
@@ -336,12 +406,108 @@ fun GiantTextViewer(
         }
     }
 
+    LaunchedEffect(toastMessage) {
+        if (toastMessage != null) {
+            delay(TOAST_DURATION_MILLIS)
+            toastMessage = null
+        }
+    }
+
+    fun selectionMenuItems(): List<SelectionMenuItem> {
+        return buildList {
+            add(SelectionMenuItem(buildAnnotatedString {
+                append("Copy selection as ")
+                if (!canCopySelectionAsText()) {
+                    withStyle(SpanStyle(color = colors.warningText, fontStyle = FontStyle.Italic)) {
+                        append("trimmed")
+                    }
+                    append(" ")
+                }
+                append("text")
+            }, ::copySelection))
+            add(SelectionMenuItem(AnnotatedString("Copy selection to a file"), ::copySelectionToFileWithPrompt))
+        }
+    }
+
+    fun dismissSelectionMenu() {
+        isSelectionMenuVisible = false
+        pendingSelectionMenuPosition = null
+        selectedSelectionMenuItemIndex = 0
+    }
+
+    fun showSelectionMenuAt(point: Offset) {
+        selectionMenuPosition = point
+        isSelectionMenuVisible = !selection.isEmpty()
+        selectedSelectionMenuItemIndex = 0
+    }
+
+    fun isPointInSelectionMenu(point: Offset): Boolean {
+        if (!isSelectionMenuVisible) {
+            return false
+        }
+        val menuWidthPx = with(density) { 240.dp.toPx() }
+        val menuHeightPx = with(density) { selectionMenuHeightDp(selectionMenuItems().size).toPx() }
+        val topLeft = selectionMenuTopLeft(
+            anchor = selectionMenuPosition,
+            menuWidthPx = menuWidthPx,
+            menuHeightPx = menuHeightPx,
+            lineHeight = charMeasurer.getRowHeight(),
+            contentWidth = contentComponentWidth,
+            contentHeight = contentComponentHeight,
+        )
+        return point.x in topLeft.x..topLeft.x + menuWidthPx &&
+            point.y in topLeft.y..topLeft.y + menuHeightPx
+    }
+
+    fun showPendingSelectionMenu() {
+        pendingSelectionMenuPosition?.let {
+            showSelectionMenuAt(it)
+            pendingSelectionMenuPosition = null
+        }
+    }
+
+    LaunchedEffect(dismissSelectionMenuKey) {
+        dismissSelectionMenu()
+    }
+
     Column(modifier
 //        .onKeyEvent { e ->
         .onPreviewKeyEvent { e ->
             println("onKeyEvent ${e.key}")
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
+                if (e.key == Key.C && e.isCtrlOrCmdPressed()) {
+                    copySelection()
+                    return@onPreviewKeyEvent true
+                }
+
+                if (isSelectionMenuVisible) {
+                    val menuItems = selectionMenuItems()
+                    when (e.key) {
+                        Key.Escape -> {
+                            dismissSelectionMenu()
+                            return@onPreviewKeyEvent true
+                        }
+
+                        Key.DirectionUp -> {
+                            selectedSelectionMenuItemIndex = (selectedSelectionMenuItemIndex - 1)
+                                .floorMod(menuItems.size)
+                            return@onPreviewKeyEvent true
+                        }
+
+                        Key.DirectionDown -> {
+                            selectedSelectionMenuItemIndex = (selectedSelectionMenuItemIndex + 1)
+                                .floorMod(menuItems.size)
+                            return@onPreviewKeyEvent true
+                        }
+
+                        Key.Enter -> {
+                            menuItems.getOrNull(selectedSelectionMenuItemIndex)?.action?.invoke()
+                            dismissSelectionMenu()
+                            return@onPreviewKeyEvent true
+                        }
+                    }
+                }
                 when {
                     e.key == Key.F && e.isCtrlOrCmdPressed() -> onSearchRequest(SearchMode.Forward)
 
@@ -381,8 +547,6 @@ fun GiantTextViewer(
                         }
                     }
 
-                    e.key == Key.C && e.isCtrlOrCmdPressed() -> copySelection()
-
                     else -> {
 //                    return@onKeyEvent false
                         return@onPreviewKeyEvent false
@@ -404,6 +568,32 @@ fun GiantTextViewer(
                     // not sure which Compose bug leading to require implementing "click to focus" manually
                     focusRequester.requestFocus()
 
+                    val point = it.changes.firstOrNull()?.position
+                    if (point != null && point.x > contentComponentWidth) {
+                        dismissSelectionMenu()
+                        return@onPointerEvent
+                    }
+
+                    if (isSelectionMenuVisible) {
+                        if (point != null) {
+                            val isRightClickOnSelection = it.buttons.isSecondaryPressed &&
+                                point.x <= contentComponentWidth &&
+                                findBytePositionByCoordinatePx(filePager, point) in selection
+                            val isShiftClickOnTextCanvas = it.keyboardModifiers.isShiftPressed &&
+                                point.x <= contentComponentWidth
+                            if (isPointInSelectionMenu(point) || isRightClickOnSelection) {
+                                return@onPointerEvent
+                            }
+                            if (isShiftClickOnTextCanvas) {
+                                return@onPointerEvent
+                            }
+                        }
+                        clearSelection()
+                        return@onPointerEvent
+                    }
+                    if (it.buttons.isSecondaryPressed) {
+                        return@onPointerEvent
+                    }
                     if (!it.keyboardModifiers.isShiftPressed) {
                         clearSelection()
                     }
@@ -446,10 +636,22 @@ fun GiantTextViewer(
                         .matchParentSize()
                         .onPointerEvent(eventType = PointerEventType.Press) {
                             val change = it.changes.firstOrNull() ?: return@onPointerEvent
+                            if (it.buttons.isSecondaryPressed) {
+                                val bytePosition = findBytePositionByCoordinatePx(filePager, change.position)
+                                if (bytePosition in selection) {
+                                    pendingSelectionMenuPosition = change.position
+                                } else if (isSelectionMenuVisible) {
+                                    dismissSelectionMenu()
+                                }
+                                return@onPointerEvent
+                            }
                             handleSelectionPress(
                                 point = change.position,
                                 isRangeExtension = it.keyboardModifiers.isShiftPressed,
                             )
+                        }
+                        .onPointerEvent(eventType = PointerEventType.Release) {
+                            showPendingSelectionMenu()
                         }
                 ) {
 //                with(density) {
@@ -524,6 +726,43 @@ fun GiantTextViewer(
                     }
 //                }
                 }
+
+                if (isSelectionMenuVisible && !selection.isEmpty()) {
+                    SelectionActionMenu(
+                        items = selectionMenuItems(),
+                        selectionSizeText = formatByteSize(selection.endExclusive - selection.start),
+                        selectedIndex = selectedSelectionMenuItemIndex,
+                        onSelectIndex = { selectedSelectionMenuItemIndex = it },
+                        onDismiss = ::dismissSelectionMenu,
+                        modifier = Modifier
+                            .offset {
+                                val menuWidthPx = with(density) { 240.dp.roundToPx() }
+                                val menuHeightPx = with(density) {
+                                    selectionMenuHeightDp(selectionMenuItems().size).roundToPx()
+                                }
+                                selectionMenuTopLeft(
+                                    anchor = selectionMenuPosition,
+                                    menuWidthPx = menuWidthPx.toFloat(),
+                                    menuHeightPx = menuHeightPx.toFloat(),
+                                    lineHeight = lineHeight,
+                                    contentWidth = contentComponentWidth,
+                                    contentHeight = contentComponentHeight,
+                                ).let {
+                                    IntOffset(it.x.toInt(), it.y.toInt())
+                                }
+                            }
+                            .width(240.dp)
+                    )
+                }
+
+                toastMessage?.let {
+                    ToastMessage(
+                        message = it,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 16.dp)
+                    )
+                }
             }
 
             var dragY by remember { mutableStateOf(0f) }
@@ -566,6 +805,9 @@ fun GiantTextViewer(
                 if (it != selectedTextEncoding || it == TextEncoding.Auto) {
                     reloadFileForEncoding(it)
                 }
+            },
+            modifier = Modifier.onPointerEvent(eventType = PointerEventType.Press) {
+                dismissSelectionMenu()
             },
         )
     }
@@ -610,6 +852,7 @@ fun GiantTextViewer(
 
 @Composable
 private fun GiantTextViewerStatusBar(
+    modifier: Modifier = Modifier,
     filePager: GiantFileTextPager,
     fileLength: Long,
     lastModifiedMillis: Long,
@@ -645,7 +888,7 @@ private fun GiantTextViewerStatusBar(
     val lastModifiedTimeWithoutSeconds = formatLastModified(lastModifiedMillis, "HH:mm")
 
     BoxWithConstraints(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(28.dp)
             .background(colors.statusBarBackground)

@@ -17,3 +17,10 @@ internal val IntRange.safeEndExclusive: Int
 
 internal val LongRange.safeEndExclusive: Long
     get() = if (last == Long.MAX_VALUE) Long.MAX_VALUE else last + 1L
+
+internal fun Int.floorMod(modulus: Int): Int {
+    if (modulus <= 0) {
+        return 0
+    }
+    return ((this % modulus) + modulus) % modulus
+}
