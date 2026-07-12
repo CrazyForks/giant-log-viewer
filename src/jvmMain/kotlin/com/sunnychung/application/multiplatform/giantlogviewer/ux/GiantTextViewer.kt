@@ -45,6 +45,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -91,6 +92,9 @@ import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.floor
+
+private const val SELECTION_AUTOSCROLL_INTERVAL_MILLIS = 50L
+private const val SELECTION_AUTOSCROLL_MAX_ROWS_PER_TICK = 8L
 
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, TemporaryBigTextApi::class)
@@ -166,6 +170,8 @@ fun GiantTextViewer(
     val focusRequester = remember { FocusRequester() }
 
     var draggedPoint by remember { mutableStateOf<Offset>(Offset.Zero) }
+    var isSelectionDragInProgress by remember { mutableStateOf(false) }
+    var isRangeExtensionGesture by remember { mutableStateOf(false) }
     var dragStartBytePosition by remember(filePath, refreshKey, encodingReloadKey) { mutableLongStateOf(0L) }
     var dragEndBytePosition by remember(filePath, refreshKey, encodingReloadKey) { mutableLongStateOf(0L) }
 
@@ -232,6 +238,102 @@ fun GiantTextViewer(
         filePager.action()
         onNavigate(filePager.viewportStartBytePosition)
         return true
+    }
+
+    /**
+     * Moves the viewport by visual rows and reports whether the start byte position actually changed.
+     * Positive deltas scroll downward; negative deltas scroll upward.
+     */
+    fun moveViewportByRows(rowDelta: Long): Boolean {
+        if (isNavigationLocked || rowDelta == 0L) return false
+
+        val previousPosition = filePager.viewportStartBytePosition
+        if (rowDelta > 0L) {
+            if (previousPosition >= fileLength) return false
+            filePager.moveToNextRow(rowDelta)
+        } else {
+            if (previousPosition <= 0L) return false
+            filePager.moveToPrevRow(-rowDelta)
+        }
+
+        val didMove = filePager.viewportStartBytePosition != previousPosition
+        if (didMove) {
+            onNavigate(filePager.viewportStartBytePosition)
+        }
+        return didMove
+    }
+
+    fun clearSelection() {
+        dragStartBytePosition = 0L
+        dragEndBytePosition = 0L
+    }
+
+    fun restartSelectionAt(point: Offset) {
+        val bytePosition = findBytePositionByCoordinatePx(filePager, point)
+        dragStartBytePosition = bytePosition
+        dragEndBytePosition = bytePosition
+    }
+
+    fun extendSelectionTo(point: Offset) {
+        dragEndBytePosition = findBytePositionByCoordinatePx(filePager, point)
+    }
+
+    /**
+     * Starts a mouse-driven selection drag. When extending an existing selection, the original
+     * anchor remains unchanged and only the active endpoint moves.
+     */
+    fun beginSelectionGesture(point: Offset, isRangeExtension: Boolean) {
+        draggedPoint = point
+        isSelectionDragInProgress = true
+        isRangeExtensionGesture = isRangeExtension && !selection.isEmpty()
+        if (isRangeExtensionGesture) {
+            extendSelectionTo(point)
+        } else {
+            restartSelectionAt(point)
+        }
+    }
+
+    fun extendSelectionFromPress(point: Offset) {
+        draggedPoint = point
+        isRangeExtensionGesture = true
+        extendSelectionTo(point)
+    }
+
+    fun stopSelectionGesture() {
+        draggedPoint = Offset.Zero
+        isSelectionDragInProgress = false
+        isRangeExtensionGesture = false
+    }
+
+    /**
+     * Returns how many visual rows the selection autoscroll should move on the next tick.
+     * Negative values scroll upward, positive values scroll downward, and zero means no autoscroll.
+     */
+    fun selectionAutoScrollRows(point: Offset): Long {
+        val rowHeight = charMeasurer.getRowHeight()
+        if (contentComponentHeight <= 0 || !java.lang.Float.isFinite(rowHeight) || rowHeight <= 0f) {
+            return 0L
+        }
+
+        val distanceOutside = when {
+            point.y < 0f -> point.y
+            point.y > contentComponentHeight.toFloat() -> point.y - contentComponentHeight.toFloat()
+            else -> return 0L
+        }
+        val rows = (abs(distanceOutside) / rowHeight).toLong() + 1L
+        return rows
+            .coerceAtMost(SELECTION_AUTOSCROLL_MAX_ROWS_PER_TICK)
+            .let { if (distanceOutside < 0f) -it else it }
+    }
+
+    LaunchedEffect(isSelectionDragInProgress, filePager, contentComponentHeight, isNavigationLocked) {
+        while (isSelectionDragInProgress) {
+            val rowDelta = selectionAutoScrollRows(draggedPoint)
+            if (rowDelta != 0L && moveViewportByRows(rowDelta)) {
+                extendSelectionTo(draggedPoint)
+            }
+            delay(SELECTION_AUTOSCROLL_INTERVAL_MILLIS)
+        }
     }
 
     Column(modifier
@@ -302,9 +404,9 @@ fun GiantTextViewer(
                     // not sure which Compose bug leading to require implementing "click to focus" manually
                     focusRequester.requestFocus()
 
-                    // clear selection
-                    dragStartBytePosition = 0L
-                    dragEndBytePosition = 0L
+                    if (!it.keyboardModifiers.isShiftPressed) {
+                        clearSelection()
+                    }
                 }
         ) {
             val startTime = KInstant.now()
@@ -317,24 +419,39 @@ fun GiantTextViewer(
                 }
                 .onDrag(
                     onDragStart = {
-                        draggedPoint = it
-                        dragStartBytePosition = findBytePositionByCoordinatePx(filePager, it)
+                        beginSelectionGesture(it, isRangeExtension = isRangeExtensionGesture)
                     },
                     onDrag = {
                         draggedPoint += it
-                        dragEndBytePosition = findBytePositionByCoordinatePx(filePager, draggedPoint)
+                        extendSelectionTo(draggedPoint)
                     },
                     onDragEnd = {
-                        draggedPoint = Offset.Zero
+                        stopSelectionGesture()
                     }
                 )
                 .scrollable(scrollState, Orientation.Vertical)
             ) {
+                fun handleSelectionPress(point: Offset, isRangeExtension: Boolean) {
+                    if (isRangeExtension && !selection.isEmpty()) {
+                        extendSelectionFromPress(point)
+                    }
+                }
+
                 val textToDisplay: List<CharSequence> = filePager.textInViewport
                 val bytePositionsOfDisplay: List<Long> = filePager.startBytePositionsInViewport
 //        println("textToDisplay:\n$textToDisplay")
                 val lineHeight = charMeasurer.getRowHeight()
-                Canvas(modifier = Modifier.matchParentSize()) {
+                Canvas(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .onPointerEvent(eventType = PointerEventType.Press) {
+                            val change = it.changes.firstOrNull() ?: return@onPointerEvent
+                            handleSelectionPress(
+                                point = change.position,
+                                isRangeExtension = it.keyboardModifiers.isShiftPressed,
+                            )
+                        }
+                ) {
 //                with(density) {
                     textToDisplay.forEachIndexed { rowRelativeIndex, row ->
                         var unicodeSequence: CharSequence? = null
@@ -691,6 +808,9 @@ private fun findBytePositionByCoordinatePx(filePager: GiantFileTextPager, point:
     val startBytePosition = startBytePositions[rowFromTopLeft]
 
     // x-axis
+    if (point.x <= 0f) {
+        return startBytePosition
+    }
     val rowText = rowTexts[rowFromTopLeft]
     var accumulatedPx = 0f
     var accumulatedBytes = 0L
