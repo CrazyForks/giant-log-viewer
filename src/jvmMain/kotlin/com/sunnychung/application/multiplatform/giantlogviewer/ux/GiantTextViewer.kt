@@ -1,5 +1,7 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.ux
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -38,6 +40,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
@@ -112,6 +115,7 @@ private const val SELECTION_AUTOSCROLL_INTERVAL_MILLIS = 50L
 private const val SELECTION_AUTOSCROLL_MAX_ROWS_PER_TICK = 8L
 private const val TEXT_COPY_LIMIT_BYTES = 5 * BYTES_PER_MIB
 private const val TOAST_DURATION_MILLIS = 3_000L
+private const val TOAST_FADE_OUT_MILLIS = 580L
 
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, TemporaryBigTextApi::class)
@@ -197,6 +201,12 @@ fun GiantTextViewer(
     var pendingSelectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Offset?>(null) }
     var selectedSelectionMenuItemIndex by remember(filePath, refreshKey, encodingReloadKey) { mutableIntStateOf(0) }
     var toastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
+    var displayedToastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
+    var isToastVisible by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
+    val toastAlpha by animateFloatAsState(
+        targetValue = if (isToastVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = (if (isToastVisible) 200L else TOAST_FADE_OUT_MILLIS).toInt()),
+    )
 
     val (contentWidth, isContentWidthLatest) = debouncedStateOf(200.milliseconds(), tolerateCount = 1, filePager) {
         contentComponentWidth
@@ -256,7 +266,10 @@ fun GiantTextViewer(
             val copiedLength = window.byteRange.endExclusive - window.byteRange.start
             clipboardManager.setText(AnnotatedString(text = window.text))
             if (selectedLength > copiedLength) {
-                toastMessage = "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes"
+                toastMessage = "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes." +
+                    "\nConsider copying to a file instead."
+            } else {
+                toastMessage = "Copied ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes."
             }
         }
     }
@@ -409,8 +422,14 @@ fun GiantTextViewer(
     }
 
     LaunchedEffect(toastMessage) {
-        if (toastMessage != null) {
-            delay(TOAST_DURATION_MILLIS)
+        val message = toastMessage ?: return@LaunchedEffect
+        displayedToastMessage = message
+        isToastVisible = true
+        delay(TOAST_DURATION_MILLIS)
+        isToastVisible = false
+        delay(TOAST_FADE_OUT_MILLIS.toLong())
+        if (displayedToastMessage == message) {
+            displayedToastMessage = null
             toastMessage = null
         }
     }
@@ -479,6 +498,9 @@ fun GiantTextViewer(
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
                 if (e.key == Key.C && e.isCtrlOrCmdPressed()) {
+                    if (isSelectionMenuVisible) {
+                        dismissSelectionMenu()
+                    }
                     copySelection()
                     return@onPreviewKeyEvent true
                 }
@@ -757,12 +779,13 @@ fun GiantTextViewer(
                     )
                 }
 
-                toastMessage?.let {
+                displayedToastMessage?.let {
                     ToastMessage(
                         message = it,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(bottom = 16.dp)
+                            .graphicsLayer { alpha = toastAlpha }
                     )
                 }
             }
