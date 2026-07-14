@@ -87,6 +87,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.displayName
 import com.sunnychung.application.multiplatform.giantlogviewer.io.selectableTextEncodings
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
+import com.sunnychung.application.multiplatform.giantlogviewer.util.GraphemeClusters
 import com.sunnychung.application.multiplatform.giantlogviewer.util.formatByteSize
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.AppFont
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
@@ -680,23 +681,13 @@ fun GiantTextViewer(
                 ) {
 //                with(density) {
                     textToDisplay.forEachIndexed { rowRelativeIndex, row ->
-                        var unicodeSequence: CharSequence? = null
                         val rowYOffset = rowRelativeIndex * lineHeight
                         val globalXOffset = 0f
                         var accumulateXOffset = 0f
                         var bytePosition = bytePositionsOfDisplay[rowRelativeIndex]
-                        row.indices.forEach { i ->
-                            var charAnnotated = row.subSequence(i, i + 1)
-                            val char = charAnnotated.first()
-                            if (char.isHighSurrogate()) {
-                                unicodeSequence = charAnnotated
-                                return@forEach
-                            } else if (char.isLowSurrogate() && unicodeSequence != null) {
-                                charAnnotated = buildString {
-                                    append(unicodeSequence)
-                                    append(charAnnotated)
-                                }
-                            }
+                        GraphemeClusters.forEach(row) { start, end ->
+                            val charAnnotated = row.subSequence(start, end)
+                            val charText = charAnnotated.string()
                             val textLayoutResult = charMeasurer.getTextLayoutResult(charAnnotated, null)
                             val charWidth = textLayouter.measureCharWidth(charAnnotated)
                             val charYOffset = textLayouter.measureCharYOffset(charAnnotated)
@@ -734,7 +725,7 @@ fun GiantTextViewer(
                             } else {
                                 drawText(
                                     textMeasurer = textMeasurer,
-                                    text = charAnnotated.string(),
+                                    text = charText,
                                     topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
                                     size = Size(charWidth, lineHeight),
                                     style = textStyle,
@@ -745,7 +736,7 @@ fun GiantTextViewer(
                             }
 
                             accumulateXOffset += charWidth
-                            bytePosition += filePager.encodedLengthOfText(charAnnotated.string())
+                            bytePosition += filePager.encodedLengthOfText(charText)
                         }
                     }
 //                }
@@ -1082,21 +1073,23 @@ private fun findBytePositionByCoordinatePx(filePager: GiantFileTextPager, point:
     val rowText = rowTexts[rowFromTopLeft]
     var accumulatedPx = 0f
     var accumulatedBytes = 0L
-    rowText.forEachIndexed { i, char ->
-        val fullChar = if (char.isHighSurrogate()) {
-            return@forEachIndexed
-        } else if (char.isLowSurrogate()) {
-            rowText.subSequence(i - 1, i + 1)
-        } else {
-            char.toString()
+    var matchedBytePosition: Long? = null
+    GraphemeClusters.forEach(rowText) { start, end ->
+        if (matchedBytePosition != null) {
+            return@forEach
         }
+        val fullChar = rowText.subSequence(start, end)
         val charWidth = filePager.textLayouter.measureCharWidth(fullChar)
         if (point.x in accumulatedPx ..< accumulatedPx + charWidth) {
-            return startBytePosition + accumulatedBytes
+            matchedBytePosition = startBytePosition + accumulatedBytes
+            return@forEach
         }
 
         accumulatedBytes += filePager.encodedLengthOfText(fullChar.string())
         accumulatedPx += charWidth
+    }
+    matchedBytePosition?.let {
+        return it
     }
     // reached end of row
     return startBytePosition + accumulatedBytes

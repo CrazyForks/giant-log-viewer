@@ -6,6 +6,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.extension.saturat
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.saturatedMultiply
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.toClampedInt
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.BidirectionalTextLayouter
+import com.sunnychung.application.multiplatform.giantlogviewer.util.GraphemeClusters
 import com.sunnychung.lib.multiplatform.bigtext.annotation.TemporaryBigTextApi
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
@@ -111,9 +112,24 @@ abstract class GiantFileTextPager(
     private fun numOfCharsInViewport(): Long = maxNumOfCharInARow().toLong() saturatedMultiply numOfRowsInViewport
 
     private fun readByteWindowSize(numOfChars: Long): Int {
+        return readByteWindowSize(numOfChars, fileReader.resolvedTextEncoding.maxBytesPerCharacter.toLong())
+    }
+
+    private fun expandedGraphemeReadByteWindowSize(numOfChars: Long): Int {
+        val bytesPerDisplayUnit = fileReader.resolvedTextEncoding.maxBytesPerCharacter
+            .coerceAtLeast(MAX_BYTES_PER_GRAPHEME_CLUSTER_ESTIMATE)
+            .toLong()
+        return readByteWindowSize(numOfChars, bytesPerDisplayUnit)
+    }
+
+    private fun searchReadByteWindowSize(numOfChars: Long): Int {
+        return readByteWindowSize(numOfChars)
+    }
+
+    private fun readByteWindowSize(numOfChars: Long, bytesPerUnit: Long): Int {
         val encoding = fileReader.resolvedTextEncoding
         val minSize = encoding.maxBytesPerCharacter.toLong() + encoding.lookAheadBytes.toLong()
-        val requestedSize = (numOfChars.coerceAtLeast(1L) + READ_WINDOW_EXTRA_CHARS) * encoding.maxBytesPerCharacter.toLong() +
+        val requestedSize = (numOfChars.coerceAtLeast(1L) + READ_WINDOW_EXTRA_CHARS) * bytesPerUnit +
             encoding.lookAheadBytes.toLong()
         return requestedSize
             .coerceAtLeast(minSize)
@@ -133,30 +149,12 @@ abstract class GiantFileTextPager(
     internal fun bytePositionAtRowCharIndex(rowIndex: Int, charIndex: Int): Long {
         val rowStartBytePosition = startBytePositionsInViewport.getOrNull(rowIndex) ?: return viewportStartBytePosition
         val rowText = textInViewport.getOrNull(rowIndex) ?: return rowStartBytePosition
-        return rowStartBytePosition + fileReader.encodedLength(rowText.subSequence(0, charIndex.coerceIn(0, rowText.length)))
+        val safeCharIndex = GraphemeClusters.boundaryAtOrBefore(rowText, charIndex)
+        return rowStartBytePosition + fileReader.encodedLength(rowText.subSequence(0, safeCharIndex))
     }
 
     private fun alignCharIndexToCharacterBoundary(text: CharSequence, index: Int): Int {
-        val clampedIndex = index.coerceIn(0, text.length)
-        return if (clampedIndex in 1..<text.length && text[clampedIndex].isLowSurrogate() && text[clampedIndex - 1].isHighSurrogate()) {
-            clampedIndex - 1
-        } else {
-            clampedIndex
-        }
-    }
-
-    private fun nextCharacterBoundary(text: CharSequence, index: Int): Int {
-        val safeIndex = alignCharIndexToCharacterBoundary(text, index)
-        return if (
-            safeIndex < text.length &&
-            text[safeIndex].isHighSurrogate() &&
-            safeIndex + 1 < text.length &&
-            text[safeIndex + 1].isLowSurrogate()
-        ) {
-            safeIndex + KOTLIN_CHARS_PER_SURROGATE_PAIR
-        } else {
-            (safeIndex + 1).coerceAtMost(text.length)
-        }
+        return GraphemeClusters.boundaryAtOrBefore(text, index)
     }
 
     /**
@@ -167,7 +165,7 @@ abstract class GiantFileTextPager(
      * The return value is the occupied width of the final partial row, which backward reconstruction
      * needs when a logical line spans multiple decoded windows.
      */
-    private inline fun forEachRowStartInLine(
+    private fun forEachRowStartInLine(
         line: CharSequence,
         contentWidth: Float,
         firstRowOccupiedWidth: Float,
@@ -182,23 +180,21 @@ abstract class GiantFileTextPager(
         var emittedRowStarts = 0L
         var currentRowOccupiedWidth = firstRowOccupiedWidth
         var hasCharInCurrentRow = firstRowOccupiedWidth > 0f
-        var index = 0
-        while (index < line.length) {
-            val nextIndex = nextCharacterBoundary(line, index)
+        GraphemeClusters.forEachUntil(line) { index, nextIndex ->
             val char = line.subSequence(index, nextIndex)
             val charWidth = textLayouter.measureCharWidth(char)
             if (currentRowOccupiedWidth + charWidth > contentWidth && hasCharInCurrentRow) {
                 onRowStart(offset + index)
                 ++emittedRowStarts
                 if (emittedRowStarts >= maxRowStarts) {
-                    return 0f
+                    return@forEachUntil false
                 }
                 currentRowOccupiedWidth = 0f
                 hasCharInCurrentRow = false
             }
             currentRowOccupiedWidth += charWidth
             hasCharInCurrentRow = true
-            index = nextIndex
+            true
         }
         return currentRowOccupiedWidth
     }
@@ -239,12 +235,15 @@ abstract class GiantFileTextPager(
         val rowBytePositions: MutableList<Long> = ArrayList(rowCapacity)
         var lastStart = 0
 
+        // Preconditions: rowStart and rowEnd must be known grapheme-cluster boundaries in
+        // manyText. Callers below pass physical line boundaries or row starts emitted by
+        // forEachRowStartInLine(), which iterates with GraphemeClusters.
         fun addRow(rowStart: Int, rowEnd: Int) {
             if (rows.size.toLong() >= maxRows) {
                 return
             }
-            val safeRowStart = alignCharIndexToCharacterBoundary(manyText, rowStart)
-            val safeRowEnd = alignCharIndexToCharacterBoundary(manyText, rowEnd).coerceAtLeast(safeRowStart)
+            val safeRowStart = rowStart.coerceIn(0, manyText.length)
+            val safeRowEnd = rowEnd.coerceIn(safeRowStart, manyText.length)
             rows += manyText.substring(safeRowStart..<safeRowEnd)
             rowBytePositions += window.bytePositionAtCharIndex(safeRowStart)
         }
@@ -270,10 +269,10 @@ abstract class GiantFileTextPager(
                 if (rows.size.toLong() >= maxRows) {
                     return
                 }
-                val rowStart = alignCharIndexToCharacterBoundary(line, lastRowStart)
-                val rowEnd = alignCharIndexToCharacterBoundary(line, it).coerceAtLeast(rowStart)
-                addRow(lineStart + rowStart, lineStart + rowEnd)
-                lastRowStart = rowEnd
+                // `it` and `lastRowStart` are relative indexes produced by
+                // forEachRowStartInLine(), so both are already grapheme boundaries in `line`.
+                addRow(lineStart + lastRowStart, lineStart + it)
+                lastRowStart = it
             }
             if (lastRowStart < line.length && rows.size.toLong() < maxRows) {
                 addRow(lineStart + lastRowStart, lineEnd)
@@ -291,6 +290,69 @@ abstract class GiantFileTextPager(
             layoutLine(lastStart, manyText.length)
         }
         return rows to rowBytePositions
+    }
+
+    private fun layoutRowsFromAdaptiveWindow(
+        startBytePosition: Long,
+        numOfCharsToRead: Long,
+        maxRows: Long,
+    ): Pair<List<String>, List<Long>> {
+        val window = fileReader.readText(startBytePosition, readByteWindowSize(numOfCharsToRead))
+        val rows = layoutRows(window, maxRows)
+        if (rows.first.size.toLong() >= maxRows || window.byteRange.safeEndExclusive >= fileLength) {
+            return rows
+        }
+
+        val expandedWindow = fileReader.readText(startBytePosition, expandedGraphemeReadByteWindowSize(numOfCharsToRead))
+        return layoutRows(expandedWindow, maxRows)
+    }
+
+    private fun rowStartsInWindow(window: DecodedTextWindow, maxRowsToRead: Long): List<Int> {
+        val manyText = window.text
+        val lineSeparators = lineSeparatorRegex.findAll(manyText).take(maxRowsToRead.toClampedInt())
+        var start = 0
+        val rowStarts = ArrayList<Int>(rowListInitialCapacity(maxRowsToRead))
+        lineSeparators.forEach { // this works only if running sequential (NOT in parallel)
+            val line = manyText.subSequence(start ..< it.range.first)
+            val lineBreaks = layoutOneLineStreaming(
+                line = line,
+                contentWidth = viewport.width.toFloat(),
+                firstRowOccupiedWidth = 0f,
+                offset = start,
+                maxRowStarts = maxRowsToRead - rowStarts.size.toLong(),
+            )
+            rowStarts += lineBreaks
+            start = it.range.safeEndExclusive
+            rowStarts += it.range.safeEndExclusive
+        }
+        if (start < manyText.length && rowStarts.size.toLong() < maxRowsToRead) {
+            val line = manyText.subSequence(start ..< manyText.length)
+            val endRowStarts = layoutOneLineStreaming(
+                line = line,
+                contentWidth = viewport.width.toFloat(),
+                firstRowOccupiedWidth = 0f,
+                offset = start,
+                maxRowStarts = maxRowsToRead - rowStarts.size.toLong(),
+            )
+            rowStarts += endRowStarts
+        }
+        return rowStarts
+    }
+
+    private fun rowStartsFromAdaptiveWindow(
+        startBytePosition: Long,
+        numOfCharsToRead: Long,
+        maxRowsToRead: Long,
+        requiredRowIndex: Int,
+    ): Pair<DecodedTextWindow, List<Int>> {
+        val window = fileReader.readText(startBytePosition, readByteWindowSize(numOfCharsToRead))
+        val rowStarts = rowStartsInWindow(window, maxRowsToRead)
+        if (rowStarts.getOrNull(requiredRowIndex) != null || window.byteRange.safeEndExclusive >= fileLength) {
+            return window to rowStarts
+        }
+
+        val expandedWindow = fileReader.readText(startBytePosition, expandedGraphemeReadByteWindowSize(numOfCharsToRead))
+        return expandedWindow to rowStartsInWindow(expandedWindow, maxRowsToRead)
     }
 
     private fun charIndexAtOrBeforeBytePosition(window: DecodedTextWindow, bytePosition: Long): Int {
@@ -328,18 +390,17 @@ abstract class GiantFileTextPager(
         return nextCharIndex(window.text, index)
     }
 
+    private fun isGraphemeBoundary(text: CharSequence, index: Int): Boolean {
+        return GraphemeClusters.boundaryAtOrBefore(text, index) == index
+    }
+
+    private fun isValidSearchMatch(text: CharSequence, match: MatchResult): Boolean {
+        return isGraphemeBoundary(text, match.range.first) &&
+            isGraphemeBoundary(text, match.range.safeEndExclusive)
+    }
+
     private fun nextCharIndex(text: CharSequence, index: Int): Int {
-        val safeIndex = alignCharIndexToCharacterBoundary(text, index)
-        return if (
-            safeIndex < text.length &&
-            text[safeIndex].isHighSurrogate() &&
-            safeIndex + 1 < text.length &&
-            text[safeIndex + 1].isLowSurrogate()
-        ) {
-            safeIndex + KOTLIN_CHARS_PER_SURROGATE_PAIR
-        } else {
-            (safeIndex + 1).coerceAtMost(text.length)
-        }
+        return GraphemeClusters.nextBoundary(text, index)
     }
 
     private fun charBefore(bytePosition: Long): CharacterBefore? {
@@ -353,15 +414,7 @@ abstract class GiantFileTextPager(
         if (endIndex <= 0) {
             return null
         }
-        val charStartIndex = if (
-            endIndex >= 2 &&
-            window.text[endIndex - 2].isHighSurrogate() &&
-            window.text[endIndex - 1].isLowSurrogate()
-        ) {
-            endIndex - 2
-        } else {
-            endIndex - 1
-        }
+        val charStartIndex = GraphemeClusters.previousBoundary(window.text, endIndex)
         return CharacterBefore(
             text = window.text.subSequence(charStartIndex, endIndex),
             startBytePosition = window.bytePositionAtCharIndex(charStartIndex),
@@ -372,7 +425,7 @@ abstract class GiantFileTextPager(
     private fun lineEndBefore(bytePosition: Long): Long {
         var end = bytePosition.coerceIn(fileReader.contentStartBytePosition, fileLength)
         val lastChar = charBefore(end)
-        if (lastChar?.text?.singleOrNull() == '\n') {
+        if (lastChar?.text?.endsWith("\n") == true) {
             end = lastChar.startBytePosition
             val beforeLf = charBefore(end)
             if (beforeLf?.text?.singleOrNull() == '\r') {
@@ -388,44 +441,95 @@ abstract class GiantFileTextPager(
             return fileReader.contentStartBytePosition
         }
 
-        val maxBytesPerRead = readByteWindowSize(maxNumOfCharInARow().toLong().coerceAtLeast(1L) + READ_WINDOW_EXTRA_CHARS)
+        val numCharsToRead = maxNumOfCharInARow().toLong().coerceAtLeast(1L) + READ_WINDOW_EXTRA_CHARS
+        val maxBytesPerRead = readByteWindowSize(numCharsToRead)
+        val expandedMaxBytesPerRead = expandedGraphemeReadByteWindowSize(numCharsToRead)
         var accumulatedWidth = 0f
         var hasCharInRow = false
 
         while (rowEndBytePosition > fileReader.contentStartBytePosition) {
             val readStart = (rowEndBytePosition - maxBytesPerRead).coerceAtLeast(fileReader.contentStartBytePosition)
-            val window = fileReader.readText(readStart, (rowEndBytePosition - readStart).toInt())
-            var index = charIndexAtOrBeforeBytePosition(window, rowEndBytePosition)
-            if (index <= 0) {
+            val normalScan = scanPreviousRowStartInWindow(
+                readStart = readStart,
+                rowEndBytePosition = rowEndBytePosition,
+                initialAccumulatedWidth = accumulatedWidth,
+                initialHasCharInRow = hasCharInRow,
+            )
+            normalScan.foundBytePosition?.let {
+                return it
+            }
+
+            if (normalScan.scannedStartBytePosition <= fileReader.contentStartBytePosition) {
                 return fileReader.contentStartBytePosition
             }
 
-            while (index > 0) {
-                val charStartIndex = if (
-                    index >= 2 &&
-                    window.text[index - 2].isHighSurrogate() &&
-                    window.text[index - 1].isLowSurrogate()
-                ) {
-                    index - 2
-                } else {
-                    index - 1
+            val expandedReadStart = (rowEndBytePosition - expandedMaxBytesPerRead)
+                .coerceAtLeast(fileReader.contentStartBytePosition)
+            if (expandedReadStart < readStart) {
+                val expandedScan = scanPreviousRowStartInWindow(
+                    readStart = expandedReadStart,
+                    rowEndBytePosition = rowEndBytePosition,
+                    initialAccumulatedWidth = accumulatedWidth,
+                    initialHasCharInRow = hasCharInRow,
+                )
+                expandedScan.foundBytePosition?.let {
+                    return it
                 }
-                val charText = window.text.subSequence(charStartIndex, index)
-                if (charText.singleOrNull() == '\n') {
-                    return window.bytePositionAtCharIndex(index)
-                }
-
-                val charWidth = textLayouter.measureCharWidth(charText)
-                if (hasCharInRow && accumulatedWidth + charWidth > viewport.width) {
-                    return window.bytePositionAtCharIndex(index)
-                }
-                accumulatedWidth += charWidth
-                hasCharInRow = true
-                index = charStartIndex
+                accumulatedWidth = expandedScan.accumulatedWidth
+                hasCharInRow = expandedScan.hasCharInRow
+                rowEndBytePosition = expandedScan.scannedStartBytePosition
+            } else {
+                accumulatedWidth = normalScan.accumulatedWidth
+                hasCharInRow = normalScan.hasCharInRow
+                rowEndBytePosition = normalScan.scannedStartBytePosition
             }
-            rowEndBytePosition = window.byteRange.start
         }
         return fileReader.contentStartBytePosition
+    }
+
+    private fun scanPreviousRowStartInWindow(
+        readStart: Long,
+        rowEndBytePosition: Long,
+        initialAccumulatedWidth: Float,
+        initialHasCharInRow: Boolean,
+    ): ReverseRowScanResult {
+        val window = fileReader.readText(readStart, (rowEndBytePosition - readStart).toInt())
+        val index = charIndexAtOrBeforeBytePosition(window, rowEndBytePosition)
+        if (index <= 0) {
+            return ReverseRowScanResult(
+                foundBytePosition = null,
+                accumulatedWidth = initialAccumulatedWidth,
+                hasCharInRow = initialHasCharInRow,
+                scannedStartBytePosition = fileReader.contentStartBytePosition,
+            )
+        }
+
+        var accumulatedWidth = initialAccumulatedWidth
+        var hasCharInRow = initialHasCharInRow
+        var foundBytePosition: Long? = null
+        GraphemeClusters.forEachReversedUntil(window.text, index) { charStartIndex, charEndIndex ->
+            val charText = window.text.subSequence(charStartIndex, charEndIndex)
+            if (charText.endsWith("\n")) {
+                foundBytePosition = window.bytePositionAtCharIndex(charEndIndex)
+                return@forEachReversedUntil false
+            }
+
+            val charWidth = textLayouter.measureCharWidth(charText)
+            if (hasCharInRow && accumulatedWidth + charWidth > viewport.width) {
+                foundBytePosition = window.bytePositionAtCharIndex(charEndIndex)
+                return@forEachReversedUntil false
+            }
+            accumulatedWidth += charWidth
+            hasCharInRow = true
+            true
+        }
+
+        return ReverseRowScanResult(
+            foundBytePosition = foundBytePosition,
+            accumulatedWidth = accumulatedWidth,
+            hasCharInRow = hasCharInRow,
+            scannedStartBytePosition = window.byteRange.start,
+        )
     }
 
     private fun findLineStartAtOrBeforeBounded(bytePosition: Long): LineStart? {
@@ -521,7 +625,9 @@ abstract class GiantFileTextPager(
                 rowStartsInWindow += it
             }
             rowStartsInWindow.forEach {
-                val bytePosition = window.bytePositionAtCharIndex(alignCharIndexToCharacterBoundary(text, it))
+                // Row starts are emitted by forEachRowStartInLine(), therefore they are already
+                // grapheme boundaries in `text` and do not need another BreakIterator pass.
+                val bytePosition = window.bytePositionAtCharIndex(it)
                 if (bytePosition > currentBytePosition && bytePosition < lineEndBytePosition) {
                     addRowStart(bytePosition)
                 }
@@ -538,7 +644,7 @@ abstract class GiantFileTextPager(
     }
 
     private fun searchWindowConfig(searchPredicate: Regex): SearchWindowConfig {
-        val pageBytes = readByteWindowSize(numOfCharsInViewport().coerceAtLeast(1))
+        val pageBytes = searchReadByteWindowSize(numOfCharsInViewport().coerceAtLeast(1))
         val readBytes = (pageBytes.toLong() * SEARCH_WINDOW_PAGE_COUNT)
             .coerceAtMost(MAX_REGEX_SEARCH_WINDOW_BYTES.toLong())
             .toInt()
@@ -562,8 +668,11 @@ abstract class GiantFileTextPager(
                 }
                 val maxNumOfCharInViewport = numOfCharsInViewport()
                 val (viewportText, rowBytePositions) = if (maxNumOfCharInViewport > 0) {
-                    val window = fileReader.readText(viewportStartBytePosition, readByteWindowSize(maxNumOfCharInViewport))
-                    layoutRows(window, numOfRowsInViewport + 1L)
+                    layoutRowsFromAdaptiveWindow(
+                        startBytePosition = viewportStartBytePosition,
+                        numOfCharsToRead = maxNumOfCharInViewport,
+                        maxRows = numOfRowsInViewport + 1L,
+                    )
                 } else {
                     emptyList<String>() to emptyList<Long>()
                 }
@@ -593,36 +702,13 @@ abstract class GiantFileTextPager(
                 .coerceAtLeast(numOfRowsToMove saturatedAdd numOfRowsInViewport saturatedAdd 1L)
                 .coerceAtLeast(1L)
             val maxNumOfCharInViewport = maxNumOfCharInARow().toLong() saturatedMultiply numOfRowsToRead
-            val window = fileReader.readText(viewportStartBytePosition, readByteWindowSize(maxNumOfCharInViewport))
-            val manyText = window.text
             val maxRowsToRead = numOfRowsToRead saturatedAdd 1L
-            val lineSeparators = lineSeparatorRegex.findAll(manyText).take(maxRowsToRead.toClampedInt())
-            var start = 0
-            val rowStarts = ArrayList<Int>(rowListInitialCapacity(maxRowsToRead))
-            lineSeparators.forEach { // this works only if running sequential (NOT in parallel)
-                val line = manyText.subSequence(start ..< it.range.first)
-                val lineBreaks = layoutOneLineStreaming(
-                    line = line,
-                    contentWidth = viewport.width.toFloat(),
-                    firstRowOccupiedWidth = 0f,
-                    offset = start,
-                    maxRowStarts = maxRowsToRead - rowStarts.size.toLong(),
-                )
-                rowStarts += lineBreaks
-                start = it.range.safeEndExclusive
-                rowStarts += it.range.safeEndExclusive
-            }
-            if (start < manyText.length && rowStarts.size.toLong() < maxRowsToRead) {
-                val line = manyText.subSequence(start ..< manyText.length)
-                val endRowStarts = layoutOneLineStreaming(
-                    line = line,
-                    contentWidth = viewport.width.toFloat(),
-                    firstRowOccupiedWidth = 0f,
-                    offset = start,
-                    maxRowStarts = maxRowsToRead - rowStarts.size.toLong(),
-                )
-                rowStarts += endRowStarts
-            }
+            val (window, rowStarts) = rowStartsFromAdaptiveWindow(
+                startBytePosition = viewportStartBytePosition,
+                numOfCharsToRead = maxNumOfCharInViewport,
+                maxRowsToRead = maxRowsToRead,
+                requiredRowIndex = (numOfRowsToMove - 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+            )
             val nextPageStart = rowStarts.getOrNull((numOfRowsToMove - 1L).coerceAtMost(rowStarts.lastIndex.toLong()).toInt())
             if (nextPageStart != null) {
                 viewportStartBytePosition = window.bytePositionAtCharIndex(nextPageStart)
@@ -718,7 +804,7 @@ abstract class GiantFileTextPager(
 
     private fun isImmediatelyAfterLineSeparator(bytePosition: Long): Boolean {
         val previousChar = charBefore(bytePosition)
-        return previousChar?.text?.singleOrNull() == '\n'
+        return previousChar?.text?.endsWith("\n") == true
     }
 
     protected fun findBytePositionOfStartOfRow(bytePosition: Long): Long {
@@ -823,7 +909,7 @@ abstract class GiantFileTextPager(
                 var lastMatchBeforeStart: MatchResult? = null
                 searchPattern.findAll(manyText).forEach {
                     val bytePositionStart = window.bytePositionAtCharIndex(it.range.first)
-                    if (bytePositionStart < startBytePosition) {
+                    if (bytePositionStart < startBytePosition && isValidSearchMatch(manyText, it)) {
                         lastMatchBeforeStart = it
                     }
                 }
@@ -869,7 +955,8 @@ abstract class GiantFileTextPager(
                 val searchResult = generateSequence(searchPattern.find(window.text, searchStartCharPosition)) {
                     it.next()
                 }.firstOrNull {
-                    window.bytePositionAtCharIndex(it.range.first) >= startBytePosition
+                    window.bytePositionAtCharIndex(it.range.first) >= startBytePosition &&
+                        isValidSearchMatch(window.text, it)
                 }
 
                 searchResult?.let {
@@ -903,6 +990,13 @@ abstract class GiantFileTextPager(
         val stepBytes: Int,
     )
 
+    private data class ReverseRowScanResult(
+        val foundBytePosition: Long?,
+        val accumulatedWidth: Float,
+        val hasCharInRow: Boolean,
+        val scannedStartBytePosition: Long,
+    )
+
     private data class ViewportCacheKey(val viewport: Viewport, val viewportStartBytePosition: Long)
 
     companion object {
@@ -914,6 +1008,7 @@ abstract class GiantFileTextPager(
         private const val MAX_INITIAL_ROW_LIST_CAPACITY: Int = 1024
         private const val MAX_DIRECT_BACKWARD_ROW_STEPS: Long = 128L
         private const val MAX_REGEX_SEARCH_WINDOW_BYTES: Int = MAX_REGEX_SEARCH_WINDOW_MIB * BYTES_PER_MIB
+        private const val MAX_BYTES_PER_GRAPHEME_CLUSTER_ESTIMATE: Int = 32
         private const val READ_WINDOW_EXTRA_CHARS: Int = 4
         private const val ROW_LIST_EXTRA_ROWS: Long = 2L
     }
