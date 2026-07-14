@@ -51,7 +51,7 @@ fun AppTextField(
     ),
     contentPadding: PaddingValues = PaddingValues(6.dp),
 //    hasIndicatorLine: Boolean = false,
-    onPointerEvent: ((event: PointerEvent, tag: String?) -> Unit)? = null,
+    onPointerEvent: ((event: PointerEvent, charIndex: Int, tag: String?) -> Unit)? = null,
     isAsynchronous: Boolean = false,
 
     /**
@@ -135,7 +135,7 @@ fun AppTextField(
     ),
     contentPadding: PaddingValues = PaddingValues(6.dp),
 //    hasIndicatorLine: Boolean = false,
-    onPointerEvent: ((event: PointerEvent, tag: String?) -> Unit)? = null,
+    onPointerEvent: ((event: PointerEvent, charIndex: Int, tag: String?) -> Unit)? = null,
     onFinishInit: () -> Unit = {},
 ) {
     val textState by rememberConcurrentLargeAnnotatedBigTextFieldState(value, key)
