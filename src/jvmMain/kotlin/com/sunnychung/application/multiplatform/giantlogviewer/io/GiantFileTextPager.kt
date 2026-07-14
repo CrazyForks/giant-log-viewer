@@ -235,12 +235,15 @@ abstract class GiantFileTextPager(
         val rowBytePositions: MutableList<Long> = ArrayList(rowCapacity)
         var lastStart = 0
 
+        // Preconditions: rowStart and rowEnd must be known grapheme-cluster boundaries in
+        // manyText. Callers below pass physical line boundaries or row starts emitted by
+        // forEachRowStartInLine(), which iterates with GraphemeClusters.
         fun addRow(rowStart: Int, rowEnd: Int) {
             if (rows.size.toLong() >= maxRows) {
                 return
             }
-            val safeRowStart = alignCharIndexToCharacterBoundary(manyText, rowStart)
-            val safeRowEnd = alignCharIndexToCharacterBoundary(manyText, rowEnd).coerceAtLeast(safeRowStart)
+            val safeRowStart = rowStart.coerceIn(0, manyText.length)
+            val safeRowEnd = rowEnd.coerceIn(safeRowStart, manyText.length)
             rows += manyText.substring(safeRowStart..<safeRowEnd)
             rowBytePositions += window.bytePositionAtCharIndex(safeRowStart)
         }
@@ -266,10 +269,10 @@ abstract class GiantFileTextPager(
                 if (rows.size.toLong() >= maxRows) {
                     return
                 }
-                val rowStart = alignCharIndexToCharacterBoundary(line, lastRowStart)
-                val rowEnd = alignCharIndexToCharacterBoundary(line, it).coerceAtLeast(rowStart)
-                addRow(lineStart + rowStart, lineStart + rowEnd)
-                lastRowStart = rowEnd
+                // `it` and `lastRowStart` are relative indexes produced by
+                // forEachRowStartInLine(), so both are already grapheme boundaries in `line`.
+                addRow(lineStart + lastRowStart, lineStart + it)
+                lastRowStart = it
             }
             if (lastRowStart < line.length && rows.size.toLong() < maxRows) {
                 addRow(lineStart + lastRowStart, lineEnd)
@@ -622,7 +625,9 @@ abstract class GiantFileTextPager(
                 rowStartsInWindow += it
             }
             rowStartsInWindow.forEach {
-                val bytePosition = window.bytePositionAtCharIndex(alignCharIndexToCharacterBoundary(text, it))
+                // Row starts are emitted by forEachRowStartInLine(), therefore they are already
+                // grapheme boundaries in `text` and do not need another BreakIterator pass.
+                val bytePosition = window.bytePositionAtCharIndex(it)
                 if (bytePosition > currentBytePosition && bytePosition < lineEndBytePosition) {
                     addRowStart(bytePosition)
                 }

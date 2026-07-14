@@ -687,6 +687,7 @@ fun GiantTextViewer(
                         var bytePosition = bytePositionsOfDisplay[rowRelativeIndex]
                         GraphemeClusters.forEach(row) { start, end ->
                             val charAnnotated = row.subSequence(start, end)
+                            val charText = charAnnotated.string()
                             val textLayoutResult = charMeasurer.getTextLayoutResult(charAnnotated, null)
                             val charWidth = textLayouter.measureCharWidth(charAnnotated)
                             val charYOffset = textLayouter.measureCharYOffset(charAnnotated)
@@ -724,7 +725,7 @@ fun GiantTextViewer(
                             } else {
                                 drawText(
                                     textMeasurer = textMeasurer,
-                                    text = charAnnotated.string(),
+                                    text = charText,
                                     topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
                                     size = Size(charWidth, lineHeight),
                                     style = textStyle,
@@ -735,7 +736,7 @@ fun GiantTextViewer(
                             }
 
                             accumulateXOffset += charWidth
-                            bytePosition += filePager.encodedLengthOfText(charAnnotated.string())
+                            bytePosition += filePager.encodedLengthOfText(charText)
                         }
                     }
 //                }
