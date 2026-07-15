@@ -42,6 +42,7 @@ import com.sunnychung.application.giantlogviewer.generated.resources.fast_forwar
 import com.sunnychung.application.giantlogviewer.generated.resources.help
 import com.sunnychung.application.giantlogviewer.generated.resources.info
 import com.sunnychung.application.giantlogviewer.generated.resources.setting
+import com.sunnychung.application.giantlogviewer.generated.resources.wrap_text
 import com.sunnychung.application.multiplatform.giantlogviewer.document.ThemeDI
 import com.sunnychung.application.multiplatform.giantlogviewer.document.toColorTheme
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.subscribeStateToEntity
@@ -64,6 +65,7 @@ fun App() {
     var isShowHelpWindow by remember { mutableStateOf(false) }
     var isShowAboutWindow by remember { mutableStateOf(false) }
     var isShowSettingWindow by remember { mutableStateOf(false) }
+    var isSoftWrapEnabled by remember { mutableStateOf(true) }
 
     val themePreference = AppContext.instance.ThemePreferenceRepository
         .subscribeStateToEntity(ThemeDI)
@@ -72,6 +74,10 @@ fun App() {
     var selectedFilePath by remember { mutableStateOf("") }
     var fileViewState: FileViewState by remember(selectedFilePath) { mutableStateOf(FileViewState(File(selectedFilePath))) }
     var dismissSelectionMenuKey by remember { mutableIntStateOf(0) }
+    val isReadableFileSelected = selectedFilePath
+        .takeIf { it.isNotEmpty() }
+        ?.let { File(it).let { file -> file.isFile && file.canRead() } }
+        ?: false
 
     print("App recompose - $themePreference")
 
@@ -123,6 +129,17 @@ fun App() {
                     )
                 }
                 AppImage(
+                    resource = Res.drawable.wrap_text,
+                    size = 20.dp,
+                    color = if (isSoftWrapEnabled) colors.menuBarIconActivated else colors.menuBarIconColor,
+                    enabled = isReadableFileSelected,
+                    modifier = Modifier.padding(5.dp)
+                        .clickable(enabled = isReadableFileSelected) {
+                            isSoftWrapEnabled = !isSoftWrapEnabled
+                            viewerFocusRequester.requestFocus()
+                        }
+                )
+                AppImage(
                     resource = Res.drawable.help,
                     size = 20.dp,
                     color = colors.menuBarIconColor,
@@ -144,6 +161,7 @@ fun App() {
 
             AppMainContent(
                 fileViewState = fileViewState,
+                isSoftWrapEnabled = isSoftWrapEnabled,
                 dismissSelectionMenuKey = dismissSelectionMenuKey,
                 onSelectFile = {
                     selectedFileName = it?.name ?: ""
@@ -164,6 +182,7 @@ fun App() {
 private fun AppMainContent(
     modifier: Modifier = Modifier,
     fileViewState: FileViewState,
+    isSoftWrapEnabled: Boolean,
     dismissSelectionMenuKey: Int,
     onSelectFile: (File?) -> Unit,
 ) {
@@ -280,6 +299,7 @@ private fun AppMainContent(
 
             GiantTextViewer(
                 fileViewState = fileViewState,
+                isSoftWrapEnabled = isSoftWrapEnabled,
                 filePath = selectedFilePath,
                 highlightByteRange = highlightByteRange,
                 onPagerReady = { filePager = it },

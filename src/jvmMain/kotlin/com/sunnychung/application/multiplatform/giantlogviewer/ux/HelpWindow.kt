@@ -55,8 +55,8 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
         icon = painterResource(Res.drawable.appicon),
         state = WindowState(
             position = WindowPosition.Aligned(Alignment.Center),
-            width = 600.dp,
-            height = 400.dp,
+            width = 660.dp,
+            height = 520.dp,
         ),
         onKeyEvent = { e ->
             if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) {
@@ -83,6 +83,10 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                 keyBindings = listOf(
                     KeyBinding("↓", "Next row"),
                     KeyBinding("↑", "Previous row"),
+                    KeyBinding("→", "Scroll right one window"),
+                    KeyBinding("←", "Scroll left one window"),
+                    KeyBinding("⇧→", "Scroll right one character"),
+                    KeyBinding("⇧←", "Scroll left one character"),
                     KeyBinding("f", "One window forward"),
                     KeyBinding("b", "One window backward"),
                     KeyBinding("⇧G", "End of file"),
@@ -93,13 +97,17 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     KeyBinding("Ctrl-C", "Exit follow"),
                     KeyBinding("Esc", "Exit search"),
                 ),
-                modifier = Modifier.weight(.42f).fillMaxHeight()
+                modifier = Modifier.weight(.44f).fillMaxHeight()
             )
             KeyBindingTable(
                 title = AnnotatedString("The memory-less style"),
                 keyBindings = listOf(
                     KeyBinding("↓", "Next row"),
                     KeyBinding("↑", "Previous row"),
+                    KeyBinding("→", "Scroll right one window"),
+                    KeyBinding("←", "Scroll left one window"),
+                    KeyBinding("Shift-→", "Scroll right one character"),
+                    KeyBinding("Shift-←", "Scroll left one character"),
                     KeyBinding("Alt/Option-↓", "One window forward"),
                     KeyBinding("Alt/Option-↑", "One window backward"),
                     KeyBinding("Ctrl/Command-↓", "End of file"),
@@ -111,7 +119,7 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     KeyBinding("Shift-Enter", "Search previous"),
                     KeyBinding("Ctrl/Command-C", "Copy selection"),
                 ),
-                modifier = Modifier.weight(.58f).fillMaxHeight()
+                modifier = Modifier.weight(.56f).fillMaxHeight()
             )
         }
     }
