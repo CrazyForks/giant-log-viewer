@@ -1024,8 +1024,7 @@ abstract class GiantFileTextPager(
         val sampleBytes = (sampleWindow.bytePositionAtCharIndex(sampleEnd) - lineStartBytePosition)
             .coerceIn(0L, contentBytes)
         if (sampleEnd <= 0 || sampleBytes <= 0L) {
-            val minBytesPerCharacter = minBytesPerCharacterForHorizontalEstimate()
-            val estimatedCells = byteOffset.toDouble() / minBytesPerCharacter.toDouble()
+            val estimatedCells = byteOffset.toDouble() / fileReader.minBytesPerCharacter.toDouble()
             return estimatedCellsToHorizontalPx(estimatedCells)
         }
 
@@ -1133,19 +1132,11 @@ abstract class GiantFileTextPager(
             .toFloat()
     }
 
-    private fun minBytesPerCharacterForHorizontalEstimate(): Long {
-        return when (fileReader.resolvedTextEncoding.kind) {
-            TextEncodingKind.Utf8 -> 1L
-            TextEncodingKind.Utf16LE,
-            TextEncodingKind.Utf16BE -> UTF16_CODE_UNIT_BYTES.toLong()
-        }
-    }
-
     private fun lineContentEndBytePosition(lineStartBytePosition: Long, nextLineStartBytePosition: Long): Long {
         return if (nextLineStartBytePosition >= fileLength) {
             fileLength
         } else {
-            (nextLineStartBytePosition - lineFeedByteLength(fileReader.resolvedTextEncoding))
+            (nextLineStartBytePosition - fileReader.lineFeedByteLength)
                 .coerceAtLeast(lineStartBytePosition)
         }
     }
@@ -1227,7 +1218,6 @@ abstract class GiantFileTextPager(
 
     private fun findNextPhysicalLineStartAfterRaw(startBytePosition: Long): Long? {
         val contentStart = fileReader.contentStartBytePosition
-        val encoding = fileReader.resolvedTextEncoding
         val lineStart = startBytePosition.coerceIn(contentStart, fileLength)
         var readStart = lineStart
         cachedNextPhysicalLineStart(lineStart)?.let {
@@ -1240,16 +1230,15 @@ abstract class GiantFileTextPager(
             val requestedLength = (fileLength - readStart)
                 .coerceAtMost(RAW_LINE_SCAN_CHUNK_BYTES.toLong())
                 .toInt()
-            val extraByteForUtf16Boundary = if (encoding.kind == TextEncodingKind.Utf8) 0 else 1
             val (bytes, range) = fileReader.readRawBytes(
                 readStart,
-                (requestedLength + extraByteForUtf16Boundary).coerceAtLeast(1),
+                fileReader.rawLineScanReadLength(requestedLength),
             )
             if (bytes.isEmpty()) {
                 return null
             }
-            findFirstLineFeedBytePosition(bytes, range.start, encoding)?.let {
-                return (it + lineFeedByteLength(encoding)).coerceAtMost(fileLength)
+            fileReader.findFirstLineFeedBytePosition(bytes, range.start)?.let {
+                return (it + fileReader.lineFeedByteLength).coerceAtMost(fileLength)
                     .also { nextLineStart -> cacheNextPhysicalLineStart(lineStart, nextLineStart) }
             }
 
@@ -1265,7 +1254,6 @@ abstract class GiantFileTextPager(
 
     private fun findPhysicalLineStartAtOrBeforeRaw(bytePosition: Long): Long {
         val contentStart = fileReader.contentStartBytePosition
-        val encoding = fileReader.resolvedTextEncoding
         var searchEnd = bytePosition.coerceIn(contentStart, fileLength)
         val originalSearchEnd = searchEnd
         cachedPhysicalLineStartContaining(searchEnd)?.let {
@@ -1277,8 +1265,8 @@ abstract class GiantFileTextPager(
             if (bytes.isEmpty()) {
                 return contentStart
             }
-            findLastLineFeedBytePosition(bytes, range.start, encoding, strictBeforeBytePosition = searchEnd)?.let {
-                return (it + lineFeedByteLength(encoding)).coerceAtMost(fileLength)
+            fileReader.findLastLineFeedBytePosition(bytes, range.start, strictBeforeBytePosition = searchEnd)?.let {
+                return (it + fileReader.lineFeedByteLength).coerceAtMost(fileLength)
                     .also { lineStart -> cacheLineKnownWithoutSeparatorUntil(lineStart, originalSearchEnd) }
             }
             if (readStart <= contentStart) {
@@ -1338,113 +1326,6 @@ abstract class GiantFileTextPager(
             nextPhysicalLineStartCache.clear()
             lineKnownWithoutSeparatorUntilCache.clear()
             lineBoundaryCacheFileLength = fileLength
-        }
-    }
-
-    private fun findFirstLineFeedBytePosition(
-        bytes: ByteArray,
-        rangeStart: Long,
-        encoding: ResolvedTextEncoding,
-    ): Long? {
-        return when (encoding.kind) {
-            TextEncodingKind.Utf8 -> {
-                bytes.indexOfFirst { it == LF_BYTE }.takeIf { it >= 0 }?.let { rangeStart + it.toLong() }
-            }
-
-            TextEncodingKind.Utf16LE,
-            TextEncodingKind.Utf16BE -> {
-                var index = firstUtf16CodeUnitOffset(rangeStart, encoding.contentStartBytePosition)
-                while (index + 1 < bytes.size) {
-                    if (isUtf16LineFeed(bytes, index, encoding.kind)) {
-                        return rangeStart + index.toLong()
-                    }
-                    index += UTF16_CODE_UNIT_BYTES
-                }
-                null
-            }
-        }
-    }
-
-    private fun findLastLineFeedBytePosition(
-        bytes: ByteArray,
-        rangeStart: Long,
-        encoding: ResolvedTextEncoding,
-        strictBeforeBytePosition: Long,
-    ): Long? {
-        return when (encoding.kind) {
-            TextEncodingKind.Utf8 -> {
-                var index = (strictBeforeBytePosition - rangeStart - 1L)
-                    .coerceAtMost((bytes.size - 1).toLong())
-                    .toInt()
-                while (index >= 0) {
-                    if (bytes[index] == LF_BYTE) {
-                        return rangeStart + index.toLong()
-                    }
-                    --index
-                }
-                null
-            }
-
-            TextEncodingKind.Utf16LE,
-            TextEncodingKind.Utf16BE -> {
-                var index = lastUtf16CodeUnitOffsetBefore(
-                    rangeStart = rangeStart,
-                    contentStart = encoding.contentStartBytePosition,
-                    bytesSize = bytes.size,
-                    strictBeforeBytePosition = strictBeforeBytePosition,
-                )
-                while (index >= 0) {
-                    if (isUtf16LineFeed(bytes, index, encoding.kind)) {
-                        return rangeStart + index.toLong()
-                    }
-                    index -= UTF16_CODE_UNIT_BYTES
-                }
-                null
-            }
-        }
-    }
-
-    private fun firstUtf16CodeUnitOffset(rangeStart: Long, contentStart: Long): Int {
-        val remainder = positiveMod(rangeStart - contentStart, UTF16_CODE_UNIT_BYTES.toLong())
-        return if (remainder == 0L) 0 else (UTF16_CODE_UNIT_BYTES - remainder).toInt()
-    }
-
-    private fun lastUtf16CodeUnitOffsetBefore(
-        rangeStart: Long,
-        contentStart: Long,
-        bytesSize: Int,
-        strictBeforeBytePosition: Long,
-    ): Int {
-        val lastPossibleAbsolutePosition = (strictBeforeBytePosition - UTF16_CODE_UNIT_BYTES)
-            .coerceAtMost(rangeStart + bytesSize - UTF16_CODE_UNIT_BYTES)
-        if (lastPossibleAbsolutePosition < rangeStart) {
-            return -1
-        }
-        val alignedAbsolutePosition = lastPossibleAbsolutePosition -
-            positiveMod(lastPossibleAbsolutePosition - contentStart, UTF16_CODE_UNIT_BYTES.toLong())
-        return (alignedAbsolutePosition - rangeStart).toInt()
-    }
-
-    private fun positiveMod(value: Long, modulus: Long): Long {
-        return ((value % modulus) + modulus) % modulus
-    }
-
-    private fun isUtf16LineFeed(bytes: ByteArray, index: Int, kind: TextEncodingKind): Boolean {
-        if (index < 0 || index + 1 >= bytes.size) {
-            return false
-        }
-        return when (kind) {
-            TextEncodingKind.Utf16LE -> bytes[index] == LF_BYTE && bytes[index + 1] == NUL_BYTE
-            TextEncodingKind.Utf16BE -> bytes[index] == NUL_BYTE && bytes[index + 1] == LF_BYTE
-            TextEncodingKind.Utf8 -> false
-        }
-    }
-
-    private fun lineFeedByteLength(encoding: ResolvedTextEncoding): Long {
-        return when (encoding.kind) {
-            TextEncodingKind.Utf8 -> 1L
-            TextEncodingKind.Utf16LE,
-            TextEncodingKind.Utf16BE -> UTF16_CODE_UNIT_BYTES.toLong()
         }
     }
 
@@ -1794,8 +1675,6 @@ abstract class GiantFileTextPager(
         private const val MAX_HORIZONTAL_SCROLL_BYTE_SAMPLE_BYTES: Int = 64 * 1024
         private const val READ_WINDOW_EXTRA_CHARS: Int = 4
         private const val ROW_LIST_EXTRA_ROWS: Long = 2L
-        private const val LF_BYTE: Byte = 0x0A
-        private const val NUL_BYTE: Byte = 0x00
     }
 }
 

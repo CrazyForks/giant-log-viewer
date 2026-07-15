@@ -251,6 +251,26 @@ class GiantFileReader(
 
     fun encodedLength(text: CharSequence): Long = codec.encodedLength(text)
 
+    fun rawLineScanReadLength(requestedLength: Int): Int = codec.rawLineScanReadLength(requestedLength)
+
+    fun findFirstLineFeedBytePosition(bytes: ByteArray, rangeStart: Long): Long? {
+        return codec.findFirstLineFeedBytePosition(bytes, rangeStart)
+    }
+
+    fun findLastLineFeedBytePosition(
+        bytes: ByteArray,
+        rangeStart: Long,
+        strictBeforeBytePosition: Long,
+    ): Long? {
+        return codec.findLastLineFeedBytePosition(bytes, rangeStart, strictBeforeBytePosition)
+    }
+
+    val lineFeedByteLength: Long
+        get() = codec.lineFeedByteLength
+
+    val minBytesPerCharacter: Long
+        get() = codec.minBytesPerCharacter
+
     private fun resolveTextEncoding(): ResolvedTextEncoding {
         val header = readRawBytes(0L, TEXT_ENCODING_PROBE_BYTES).first
         return when {
@@ -273,8 +293,8 @@ class GiantFileReader(
     private fun createCodec(encoding: ResolvedTextEncoding): TextFileCodec {
         return when (encoding.kind) {
             TextEncodingKind.Utf8 -> Utf8TextFileCodec(encoding)
-            TextEncodingKind.Utf16LE,
-            TextEncodingKind.Utf16BE -> Utf16TextFileCodec(encoding)
+            TextEncodingKind.Utf16LE -> Utf16LETextFileCodec(encoding)
+            TextEncodingKind.Utf16BE -> Utf16BETextFileCodec(encoding)
         }
     }
 

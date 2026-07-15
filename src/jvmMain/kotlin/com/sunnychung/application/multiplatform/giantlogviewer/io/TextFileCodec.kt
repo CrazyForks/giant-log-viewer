@@ -5,6 +5,8 @@ import java.nio.charset.StandardCharsets
 
 internal interface TextFileCodec {
     val encoding: ResolvedTextEncoding
+    val lineFeedByteLength: Long
+    val minBytesPerCharacter: Long
 
     /**
      * Decodes a byte window beginning at `startBytePosition`. `minBytes` is the requested minimum
@@ -18,11 +20,24 @@ internal interface TextFileCodec {
     ): DecodedTextWindow
 
     fun encodedLength(text: CharSequence): Long
+
+    fun rawLineScanReadLength(requestedLength: Int): Int
+
+    fun findFirstLineFeedBytePosition(bytes: ByteArray, rangeStart: Long): Long?
+
+    fun findLastLineFeedBytePosition(
+        bytes: ByteArray,
+        rangeStart: Long,
+        strictBeforeBytePosition: Long,
+    ): Long?
 }
 
 internal class Utf8TextFileCodec(
     override val encoding: ResolvedTextEncoding,
 ) : TextFileCodec {
+    override val lineFeedByteLength: Long = 1L
+    override val minBytesPerCharacter: Long = 1L
+
     override fun readText(
         startBytePosition: Long,
         minBytes: Int,
@@ -78,6 +93,31 @@ internal class Utf8TextFileCodec(
         return bytes
     }
 
+    override fun rawLineScanReadLength(requestedLength: Int): Int = requestedLength.coerceAtLeast(1)
+
+    override fun findFirstLineFeedBytePosition(bytes: ByteArray, rangeStart: Long): Long? {
+        return bytes.indexOfFirst { it == LF_BYTE }
+            .takeIf { it >= 0 }
+            ?.let { rangeStart + it.toLong() }
+    }
+
+    override fun findLastLineFeedBytePosition(
+        bytes: ByteArray,
+        rangeStart: Long,
+        strictBeforeBytePosition: Long,
+    ): Long? {
+        var index = (strictBeforeBytePosition - rangeStart - 1L)
+            .coerceAtMost((bytes.size - 1).toLong())
+            .toInt()
+        while (index >= 0) {
+            if (bytes[index] == LF_BYTE) {
+                return rangeStart + index.toLong()
+            }
+            --index
+        }
+        return null
+    }
+
     private fun findSequenceStart(bytes: ByteArray, index: Int): Int {
         var i = index.coerceIn(0, bytes.size)
         var lookBehind = 0
@@ -115,9 +155,12 @@ internal class Utf8TextFileCodec(
     }
 }
 
-internal class Utf16TextFileCodec(
+internal abstract class Utf16TextFileCodec(
     override val encoding: ResolvedTextEncoding,
 ) : TextFileCodec {
+    override val lineFeedByteLength: Long = UTF16_CODE_UNIT_BYTES.toLong()
+    override val minBytesPerCharacter: Long = UTF16_CODE_UNIT_BYTES.toLong()
+
     override fun readText(
         startBytePosition: Long,
         minBytes: Int,
@@ -156,6 +199,38 @@ internal class Utf16TextFileCodec(
 
     override fun encodedLength(text: CharSequence): Long = text.length * UTF16_CODE_UNIT_BYTES.toLong()
 
+    override fun rawLineScanReadLength(requestedLength: Int): Int = (requestedLength + 1).coerceAtLeast(1)
+
+    override fun findFirstLineFeedBytePosition(bytes: ByteArray, rangeStart: Long): Long? {
+        var index = firstCodeUnitOffset(rangeStart)
+        while (index + 1 < bytes.size) {
+            if (isLineFeedCodeUnit(bytes, index)) {
+                return rangeStart + index.toLong()
+            }
+            index += UTF16_CODE_UNIT_BYTES
+        }
+        return null
+    }
+
+    override fun findLastLineFeedBytePosition(
+        bytes: ByteArray,
+        rangeStart: Long,
+        strictBeforeBytePosition: Long,
+    ): Long? {
+        var index = lastCodeUnitOffsetBefore(
+            rangeStart = rangeStart,
+            bytesSize = bytes.size,
+            strictBeforeBytePosition = strictBeforeBytePosition,
+        )
+        while (index >= 0) {
+            if (isLineFeedCodeUnit(bytes, index)) {
+                return rangeStart + index.toLong()
+            }
+            index -= UTF16_CODE_UNIT_BYTES
+        }
+        return null
+    }
+
     private fun alignToCodeUnitStart(bytePosition: Long): Long {
         val relative = bytePosition - encoding.contentStartBytePosition
         return if (relative % UTF16_CODE_UNIT_BYTES == 0L) {
@@ -174,6 +249,34 @@ internal class Utf16TextFileCodec(
         }
     }
 
+    private fun firstCodeUnitOffset(rangeStart: Long): Int {
+        val remainder = positiveMod(rangeStart - encoding.contentStartBytePosition, UTF16_CODE_UNIT_BYTES.toLong())
+        return if (remainder == 0L) 0 else (UTF16_CODE_UNIT_BYTES - remainder).toInt()
+    }
+
+    private fun lastCodeUnitOffsetBefore(
+        rangeStart: Long,
+        bytesSize: Int,
+        strictBeforeBytePosition: Long,
+    ): Int {
+        val lastPossibleAbsolutePosition = (strictBeforeBytePosition - UTF16_CODE_UNIT_BYTES)
+            .coerceAtMost(rangeStart + bytesSize - UTF16_CODE_UNIT_BYTES)
+        if (lastPossibleAbsolutePosition < rangeStart) {
+            return -1
+        }
+        val alignedAbsolutePosition = lastPossibleAbsolutePosition -
+            positiveMod(lastPossibleAbsolutePosition - encoding.contentStartBytePosition, UTF16_CODE_UNIT_BYTES.toLong())
+        return (alignedAbsolutePosition - rangeStart).toInt()
+    }
+
+    protected abstract fun isLineFeedCodeUnit(bytes: ByteArray, index: Int): Boolean
+
+    protected abstract fun readCodeUnit(firstByte: Int, secondByte: Int): Int
+
+    private fun positiveMod(value: Long, modulus: Long): Long {
+        return ((value % modulus) + modulus) % modulus
+    }
+
     private fun readCodeUnit(
         bytePosition: Long,
         fileLength: Long,
@@ -188,10 +291,39 @@ internal class Utf16TextFileCodec(
         }
         val first = bytes[0].toInt() and 0xFF
         val second = bytes[1].toInt() and 0xFF
-        return when (encoding.kind) {
-            TextEncodingKind.Utf16LE -> first or (second shl 8)
-            TextEncodingKind.Utf16BE -> (first shl 8) or second
-            TextEncodingKind.Utf8 -> error("UTF-8 is not a UTF-16 encoding")
-        }
+        return readCodeUnit(first, second)
     }
 }
+
+internal class Utf16LETextFileCodec(
+    encoding: ResolvedTextEncoding,
+) : Utf16TextFileCodec(encoding) {
+    override fun isLineFeedCodeUnit(bytes: ByteArray, index: Int): Boolean {
+        return index >= 0 &&
+            index + 1 < bytes.size &&
+            bytes[index] == LF_BYTE &&
+            bytes[index + 1] == NUL_BYTE
+    }
+
+    override fun readCodeUnit(firstByte: Int, secondByte: Int): Int {
+        return firstByte or (secondByte shl 8)
+    }
+}
+
+internal class Utf16BETextFileCodec(
+    encoding: ResolvedTextEncoding,
+) : Utf16TextFileCodec(encoding) {
+    override fun isLineFeedCodeUnit(bytes: ByteArray, index: Int): Boolean {
+        return index >= 0 &&
+            index + 1 < bytes.size &&
+            bytes[index] == NUL_BYTE &&
+            bytes[index + 1] == LF_BYTE
+    }
+
+    override fun readCodeUnit(firstByte: Int, secondByte: Int): Int {
+        return (firstByte shl 8) or secondByte
+    }
+}
+
+private const val LF_BYTE: Byte = 0x0A
+private const val NUL_BYTE: Byte = 0x00
