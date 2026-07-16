@@ -16,6 +16,7 @@ _Changes since 1.2.0_
 - Shift-Click to extend selection
 - Dragging out of view to scroll and extend selection
 - Copy selection to a file
+- Option to turn off soft wrapping
 
 ### Changed
 - New appends to the opened file are not automatically followed anymore

@@ -124,6 +124,7 @@ private const val TOAST_FADE_OUT_MILLIS = 580L
 fun GiantTextViewer(
     modifier: Modifier,
     fileViewState: FileViewState,
+    isSoftWrapEnabled: Boolean,
     filePath: String,
     refreshKey: Int = 0,
     highlightByteRange: LongRange,
@@ -217,6 +218,11 @@ fun GiantTextViewer(
         remember(filePager, contentWidth, contentComponentHeight, density) {
             filePager.viewport = Viewport(contentWidth, contentComponentHeight, density.density)
         }
+    }
+
+    LaunchedEffect(filePager, isSoftWrapEnabled) {
+        filePager.updateSoftWrapEnabled(isSoftWrapEnabled)
+        onNavigate(filePager.viewportStartBytePosition)
     }
 
     val selection = minOf(dragStartBytePosition, dragEndBytePosition) ..<
@@ -553,6 +559,28 @@ fun GiantTextViewer(
 
                     e.key == Key.DirectionUp -> return@onPreviewKeyEvent navigate { moveToPrevRow() }
                     e.key == Key.DirectionDown -> return@onPreviewKeyEvent navigate { moveToNextRow() }
+                    e.key == Key.DirectionLeft -> {
+                        if (isNavigationLocked) return@onPreviewKeyEvent false
+                        val scrollPx = if (e.isShiftPressed) {
+                            textLayouter.measureCharWidth("I")
+                        } else {
+                            contentComponentWidth.toFloat().takeIf { it > 0f }
+                                ?: textLayouter.measureCharWidth("I")
+                        }
+                        filePager.scrollHorizontallyByPx(-scrollPx)
+                        return@onPreviewKeyEvent true
+                    }
+                    e.key == Key.DirectionRight -> {
+                        if (isNavigationLocked) return@onPreviewKeyEvent false
+                        val scrollPx = if (e.isShiftPressed) {
+                            textLayouter.measureCharWidth("I")
+                        } else {
+                            contentComponentWidth.toFloat().takeIf { it > 0f }
+                                ?: textLayouter.measureCharWidth("I")
+                        }
+                        filePager.scrollHorizontallyByPx(scrollPx)
+                        return@onPreviewKeyEvent true
+                    }
 
                     e.key == Key.Slash && e.isShiftPressed -> onSearchRequest(SearchMode.Backward)
                     e.key == Key.Slash -> onSearchRequest(SearchMode.Forward)
@@ -625,88 +653,111 @@ fun GiantTextViewer(
                 }
         ) {
             val startTime = KInstant.now()
-            Box(modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .onGloballyPositioned {
-                    contentComponentWidth = it.size.width
-                    contentComponentHeight = it.size.height
-                }
-                .onDrag(
-                    onDragStart = {
-                        beginSelectionGesture(it, isRangeExtension = isRangeExtensionGesture)
-                    },
-                    onDrag = {
-                        draggedPoint += it
-                        extendSelectionTo(draggedPoint)
-                    },
-                    onDragEnd = {
-                        stopSelectionGesture()
-                    }
-                )
-                .scrollable(scrollState, Orientation.Vertical)
-            ) {
-                fun handleSelectionPress(point: Offset, isRangeExtension: Boolean) {
-                    if (isRangeExtension && !selection.isEmpty()) {
-                        extendSelectionFromPress(point)
-                    }
-                }
 
-                val textToDisplay: List<CharSequence> = filePager.textInViewport
-                val bytePositionsOfDisplay: List<Long> = filePager.startBytePositionsInViewport
-//        println("textToDisplay:\n$textToDisplay")
-                val lineHeight = charMeasurer.getRowHeight()
-                Canvas(
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                Box(
                     modifier = Modifier
-                        .matchParentSize()
-                        .onPointerEvent(eventType = PointerEventType.Press) {
-                            val change = it.changes.firstOrNull() ?: return@onPointerEvent
-                            if (it.buttons.isSecondaryPressed) {
-                                val bytePosition = findBytePositionByCoordinatePx(filePager, change.position)
-                                if (bytePosition in selection) {
-                                    pendingSelectionMenuPosition = change.position
-                                } else if (isSelectionMenuVisible) {
-                                    dismissSelectionMenu()
-                                }
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .onGloballyPositioned {
+                            contentComponentWidth = it.size.width
+                            contentComponentHeight = it.size.height
+                        }
+                        .onDrag(
+                            onDragStart = {
+                                beginSelectionGesture(it, isRangeExtension = isRangeExtensionGesture)
+                            },
+                            onDrag = {
+                                draggedPoint += it
+                                extendSelectionTo(draggedPoint)
+                            },
+                            onDragEnd = {
+                                stopSelectionGesture()
+                            }
+                        )
+                        .onPointerEvent(eventType = PointerEventType.Scroll) {
+                            if (isNavigationLocked || isSoftWrapEnabled) {
                                 return@onPointerEvent
                             }
-                            handleSelectionPress(
-                                point = change.position,
-                                isRangeExtension = it.keyboardModifiers.isShiftPressed,
-                            )
+                            val scrollDelta = it.changes.fold(Offset.Zero) { acc, change ->
+                                acc + change.scrollDelta
+                            }
+                            val horizontalDelta = when {
+                                scrollDelta.x != 0f -> scrollDelta.x
+                                it.keyboardModifiers.isShiftPressed && scrollDelta.y != 0f -> scrollDelta.y
+                                else -> 0f
+                            }
+                            if (horizontalDelta != 0f) {
+                                filePager.scrollHorizontallyByPx(horizontalDelta)
+                            }
                         }
-                        .onPointerEvent(eventType = PointerEventType.Release) {
-                            showPendingSelectionMenu()
-                        }
+                        .scrollable(scrollState, Orientation.Vertical)
                 ) {
-//                with(density) {
-                    textToDisplay.forEachIndexed { rowRelativeIndex, row ->
-                        val rowYOffset = rowRelativeIndex * lineHeight
-                        val globalXOffset = 0f
-                        var accumulateXOffset = 0f
-                        var bytePosition = bytePositionsOfDisplay[rowRelativeIndex]
-                        GraphemeClusters.forEach(row) { start, end ->
-                            val charAnnotated = row.subSequence(start, end)
-                            val charText = charAnnotated.string()
-                            val textLayoutResult = charMeasurer.getTextLayoutResult(charAnnotated, null)
-                            val charWidth = textLayouter.measureCharWidth(charAnnotated)
-                            val charYOffset = textLayouter.measureCharYOffset(charAnnotated)
+                    fun handleSelectionPress(point: Offset, isRangeExtension: Boolean) {
+                        if (isRangeExtension && !selection.isEmpty()) {
+                            extendSelectionFromPress(point)
+                        }
+                    }
 
-                            if (bytePosition in highlightByteRange) {
-                                drawRect(
-                                    color = colors.fileBodyTheme.searchMatchBackground,
-                                    topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
-                                    size = Size(charWidth, lineHeight),
+                    val textToDisplay: List<CharSequence> = filePager.textInViewport
+                    val bytePositionsOfDisplay: List<Long> = filePager.startBytePositionsInViewport
+//                  println("textToDisplay:\n$textToDisplay")
+                    val lineHeight = charMeasurer.getRowHeight()
+                    Canvas(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .onPointerEvent(eventType = PointerEventType.Press) {
+                                val change = it.changes.firstOrNull() ?: return@onPointerEvent
+                                if (it.buttons.isSecondaryPressed) {
+                                    val bytePosition = findBytePositionByCoordinatePx(filePager, change.position)
+                                    if (bytePosition in selection) {
+                                        pendingSelectionMenuPosition = change.position
+                                    } else if (isSelectionMenuVisible) {
+                                        dismissSelectionMenu()
+                                    }
+                                    return@onPointerEvent
+                                }
+                                handleSelectionPress(
+                                    point = change.position,
+                                    isRangeExtension = it.keyboardModifiers.isShiftPressed,
                                 )
                             }
-
-                            if (bytePosition in selection) {
-                                drawRect(
-                                    color = colors.fileBodyTheme.selectionBackground,
-                                    topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
-                                    size = Size(charWidth, lineHeight),
-                                )
+                            .onPointerEvent(eventType = PointerEventType.Release) {
+                                showPendingSelectionMenu()
                             }
+                    ) {
+//                      with(density) {
+                        textToDisplay.forEachIndexed { rowRelativeIndex, row ->
+                            val rowYOffset = rowRelativeIndex * lineHeight
+                            val globalXOffset = 0f
+                            var accumulateXOffset = 0f
+                            var bytePosition = bytePositionsOfDisplay[rowRelativeIndex]
+                            GraphemeClusters.forEach(row) { start, end ->
+                                val charAnnotated = row.subSequence(start, end)
+                                val charText = charAnnotated.string()
+                                val textLayoutResult = charMeasurer.getTextLayoutResult(charAnnotated, null)
+                                val charWidth = textLayouter.measureCharWidth(charAnnotated)
+                                val charYOffset = textLayouter.measureCharYOffset(charAnnotated)
+
+                                if (bytePosition in highlightByteRange) {
+                                    drawRect(
+                                        color = colors.fileBodyTheme.searchMatchBackground,
+                                        topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
+                                        size = Size(charWidth, lineHeight),
+                                    )
+                                }
+
+                                if (bytePosition in selection) {
+                                    drawRect(
+                                        color = colors.fileBodyTheme.selectionBackground,
+                                        topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
+                                        size = Size(charWidth, lineHeight),
+                                    )
+                                }
 
 //                        BasicText(
 //                            charAnnotated.annotatedString(),
@@ -717,66 +768,78 @@ fun GiantTextViewer(
 //                                .offset((globalXOffset + accumulateXOffset).toDp(), (rowYOffset + charYOffset).toDp())
 //                        )
 
-                            if (textLayoutResult != null) { // use cache to avoid object allocations and interop calls
-                                drawText(
-                                    textLayoutResult = textLayoutResult,
-                                    topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
-                                )
-                            } else {
-                                drawText(
-                                    textMeasurer = textMeasurer,
-                                    text = charText,
-                                    topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
-                                    size = Size(charWidth, lineHeight),
-                                    style = textStyle,
-                                    overflow = TextOverflow.Visible,
-                                    softWrap = false,
-                                    maxLines = 1,
-                                )
-                            }
+                                if (textLayoutResult != null) { // use cache to avoid object allocations and interop calls
+                                    drawText(
+                                        textLayoutResult = textLayoutResult,
+                                        topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
+                                    )
+                                } else {
+                                    drawText(
+                                        textMeasurer = textMeasurer,
+                                        text = charText,
+                                        topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
+                                        size = Size(charWidth, lineHeight),
+                                        style = textStyle,
+                                        overflow = TextOverflow.Visible,
+                                        softWrap = false,
+                                        maxLines = 1,
+                                    )
+                                }
 
-                            accumulateXOffset += charWidth
-                            bytePosition += filePager.encodedLengthOfText(charText)
+                                accumulateXOffset += charWidth
+                                bytePosition += filePager.encodedLengthOfText(charText)
+                            }
                         }
+//                      }
                     }
-//                }
+
+                    if (isSelectionMenuVisible && !selection.isEmpty()) {
+                        SelectionActionMenu(
+                            items = selectionMenuItems(),
+                            selectionSizeText = formatByteSize(selection.endExclusive - selection.start),
+                            selectedIndex = selectedSelectionMenuItemIndex,
+                            onSelectIndex = { selectedSelectionMenuItemIndex = it },
+                            onDismiss = ::dismissSelectionMenu,
+                            modifier = Modifier
+                                .offset {
+                                    val menuWidthPx = with(density) { 240.dp.roundToPx() }
+                                    val menuHeightPx = with(density) {
+                                        selectionMenuHeightDp(selectionMenuItems().size).roundToPx()
+                                    }
+                                    selectionMenuTopLeft(
+                                        anchor = selectionMenuPosition,
+                                        menuWidthPx = menuWidthPx.toFloat(),
+                                        menuHeightPx = menuHeightPx.toFloat(),
+                                        lineHeight = lineHeight,
+                                        contentWidth = contentComponentWidth,
+                                        contentHeight = contentComponentHeight,
+                                    ).let {
+                                        IntOffset(it.x.toInt(), it.y.toInt())
+                                    }
+                                }
+                                .width(240.dp)
+                        )
+                    }
+
+                    displayedToastMessage?.let {
+                        ToastMessage(
+                            message = it,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 16.dp)
+                                .graphicsLayer { alpha = toastAlpha }
+                        )
+                    }
                 }
 
-                if (isSelectionMenuVisible && !selection.isEmpty()) {
-                    SelectionActionMenu(
-                        items = selectionMenuItems(),
-                        selectionSizeText = formatByteSize(selection.endExclusive - selection.start),
-                        selectedIndex = selectedSelectionMenuItemIndex,
-                        onSelectIndex = { selectedSelectionMenuItemIndex = it },
-                        onDismiss = ::dismissSelectionMenu,
+                if (!isSoftWrapEnabled) {
+                    HorizontalIndicatorView(
+                        value = filePager.horizontalScrollRatio(),
+                        onSelectRatio = { filePager.scrollHorizontallyToRatio(it) },
+                        onScrollByPx = { filePager.scrollHorizontallyByPx(it) },
                         modifier = Modifier
-                            .offset {
-                                val menuWidthPx = with(density) { 240.dp.roundToPx() }
-                                val menuHeightPx = with(density) {
-                                    selectionMenuHeightDp(selectionMenuItems().size).roundToPx()
-                                }
-                                selectionMenuTopLeft(
-                                    anchor = selectionMenuPosition,
-                                    menuWidthPx = menuWidthPx.toFloat(),
-                                    menuHeightPx = menuHeightPx.toFloat(),
-                                    lineHeight = lineHeight,
-                                    contentWidth = contentComponentWidth,
-                                    contentHeight = contentComponentHeight,
-                                ).let {
-                                    IntOffset(it.x.toInt(), it.y.toInt())
-                                }
-                            }
-                            .width(240.dp)
-                    )
-                }
-
-                displayedToastMessage?.let {
-                    ToastMessage(
-                        message = it,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 16.dp)
-                            .graphicsLayer { alpha = toastAlpha }
+                            .fillMaxWidth()
+                            .height(18.dp)
                     )
                 }
             }
