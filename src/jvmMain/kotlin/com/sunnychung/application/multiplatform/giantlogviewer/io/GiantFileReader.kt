@@ -1,5 +1,8 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.io
 
+import com.sunnychung.application.multiplatform.giantlogviewer.io.codec.Utf16BETextFileCodec
+import com.sunnychung.application.multiplatform.giantlogviewer.io.codec.Utf16LETextFileCodec
+import com.sunnychung.application.multiplatform.giantlogviewer.io.codec.Utf8TextFileCodec
 import java.io.ByteArrayOutputStream
 import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
