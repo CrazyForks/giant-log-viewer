@@ -160,12 +160,13 @@ fun App() {
             }
 
             AppMainContent(
+                selectedFilePath = selectedFilePath,
                 fileViewState = fileViewState,
                 isSoftWrapEnabled = isSoftWrapEnabled,
                 dismissSelectionMenuKey = dismissSelectionMenuKey,
-                onSelectFile = {
-                    selectedFileName = it?.name ?: ""
-                    selectedFilePath = it?.path ?: ""
+                onSelectFile = { file ->
+                    selectedFileName = file?.name ?: ""
+                    selectedFilePath = file?.path ?: ""
                 },
                 modifier = Modifier.focusRequester(viewerFocusRequester)
             )
@@ -181,6 +182,7 @@ fun App() {
 @OptIn(ExperimentalComposeUiApi::class)
 private fun AppMainContent(
     modifier: Modifier = Modifier,
+    selectedFilePath: String,
     fileViewState: FileViewState,
     isSoftWrapEnabled: Boolean,
     dismissSelectionMenuKey: Int,
@@ -189,8 +191,6 @@ private fun AppMainContent(
     val colors = LocalColor.current
 
     val isNavigationLocked = fileViewState.isFollowing
-
-    var selectedFilePath by remember { mutableStateOf("") }
 
     val viewerFocusRequester = remember { FocusRequester() }
     var filePager: GiantFileTextPager? by remember { mutableStateOf(null) }
@@ -283,7 +283,7 @@ private fun AppMainContent(
                             val uri = URI((drop.dragData as DragData.FilesList).readFiles().first())
 
                             println("f: ${uri.scheme} ${File(uri).absolutePath}")
-                            selectedFilePath = File(uri).absolutePath
+                            onSelectFile(File(uri))
 
                             viewerFocusRequester.requestFocus()
                         }
