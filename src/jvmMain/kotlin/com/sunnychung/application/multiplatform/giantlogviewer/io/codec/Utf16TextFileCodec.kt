@@ -63,6 +63,18 @@ internal abstract class Utf16TextFileCodec(
         return null
     }
 
+    override fun findLineFeedBytePositions(bytes: ByteArray, rangeStart: Long): List<Long> {
+        val positions = ArrayList<Long>()
+        var index = firstCodeUnitOffset(rangeStart)
+        while (index + 1 < bytes.size) {
+            if (isLineFeedCodeUnit(bytes, index)) {
+                positions += rangeStart + index.toLong()
+            }
+            index += UTF16_CODE_UNIT_BYTES
+        }
+        return positions
+    }
+
     override fun findLastLineFeedBytePosition(
         bytes: ByteArray,
         rangeStart: Long,

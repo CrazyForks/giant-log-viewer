@@ -78,6 +78,16 @@ internal class Utf8TextFileCodec(
             ?.let { rangeStart + it.toLong() }
     }
 
+    override fun findLineFeedBytePositions(bytes: ByteArray, rangeStart: Long): List<Long> {
+        val positions = ArrayList<Long>()
+        bytes.forEachIndexed { index, byte ->
+            if (byte == LF_BYTE) {
+                positions += rangeStart + index.toLong()
+            }
+        }
+        return positions
+    }
+
     override fun findLastLineFeedBytePosition(
         bytes: ByteArray,
         rangeStart: Long,

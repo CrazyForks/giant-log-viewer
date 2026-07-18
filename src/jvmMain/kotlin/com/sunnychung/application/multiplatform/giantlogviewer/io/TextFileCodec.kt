@@ -22,6 +22,8 @@ internal interface TextFileCodec {
 
     fun findFirstLineFeedBytePosition(bytes: ByteArray, rangeStart: Long): Long?
 
+    fun findLineFeedBytePositions(bytes: ByteArray, rangeStart: Long): List<Long>
+
     fun findLastLineFeedBytePosition(
         bytes: ByteArray,
         rangeStart: Long,

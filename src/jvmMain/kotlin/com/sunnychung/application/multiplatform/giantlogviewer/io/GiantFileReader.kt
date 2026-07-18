@@ -260,6 +260,10 @@ class GiantFileReader(
         return codec.findFirstLineFeedBytePosition(bytes, rangeStart)
     }
 
+    fun findLineFeedBytePositions(bytes: ByteArray, rangeStart: Long): List<Long> {
+        return codec.findLineFeedBytePositions(bytes, rangeStart)
+    }
+
     fun findLastLineFeedBytePosition(
         bytes: ByteArray,
         rangeStart: Long,

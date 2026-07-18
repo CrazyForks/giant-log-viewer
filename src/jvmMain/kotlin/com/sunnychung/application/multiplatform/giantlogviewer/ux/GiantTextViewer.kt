@@ -45,11 +45,15 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.isAltGraphPressed
+import androidx.compose.ui.input.pointer.isAltPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -75,6 +79,7 @@ import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.dialogs.openFileSaver
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.floorMod
+import com.sunnychung.application.multiplatform.giantlogviewer.extension.forwardLength
 import com.sunnychung.application.multiplatform.giantlogviewer.io.BYTES_PER_MIB
 import com.sunnychung.application.multiplatform.giantlogviewer.io.ComposeGiantFileTextPager
 import com.sunnychung.application.multiplatform.giantlogviewer.io.copyFileByteRange
@@ -103,7 +108,12 @@ import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import com.sunnychung.lib.multiplatform.kdatetime.extension.milliseconds
 import com.sunnychung.lib.multiplatform.kdatetime.extension.seconds
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -117,6 +127,10 @@ private const val SELECTION_AUTOSCROLL_MAX_ROWS_PER_TICK = 8L
 private const val TEXT_COPY_LIMIT_BYTES = 5 * BYTES_PER_MIB
 private const val TOAST_DURATION_MILLIS = 3_000L
 private const val TOAST_FADE_OUT_MILLIS = 580L
+
+private fun PointerEvent.isColumnSelectionModifierPressed(): Boolean {
+    return keyboardModifiers.isAltPressed || keyboardModifiers.isAltGraphPressed
+}
 
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, TemporaryBigTextApi::class)
@@ -196,8 +210,15 @@ fun GiantTextViewer(
     var draggedPoint by remember { mutableStateOf<Offset>(Offset.Zero) }
     var isSelectionDragInProgress by remember { mutableStateOf(false) }
     var isRangeExtensionGesture by remember { mutableStateOf(false) }
+    var isColumnSelectionGesture by remember { mutableStateOf(false) }
+    var pendingColumnSelectionGesture by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
     var dragStartBytePosition by remember(filePath, refreshKey, encodingReloadKey) { mutableLongStateOf(0L) }
     var dragEndBytePosition by remember(filePath, refreshKey, encodingReloadKey) { mutableLongStateOf(0L) }
+    var columnSelectionAnchor by remember(filePath, refreshKey, encodingReloadKey) {
+        mutableStateOf<ColumnSelectionPoint?>(null)
+    }
+    var columnSelection by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<TextSelection>(TextSelection.Empty) }
+    var isColumnSelectionActive by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
     var isSelectionMenuVisible by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
     var selectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(Offset.Zero) }
     var pendingSelectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Offset?>(null) }
@@ -205,6 +226,7 @@ fun GiantTextViewer(
     var toastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
     var displayedToastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
     var isToastVisible by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
+    var copySelectionJob by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Job?>(null) }
     val toastAlpha by animateFloatAsState(
         targetValue = if (isToastVisible) 1f else 0f,
         animationSpec = tween(durationMillis = (if (isToastVisible) 200L else TOAST_FADE_OUT_MILLIS).toInt()),
@@ -221,12 +243,43 @@ fun GiantTextViewer(
     }
 
     LaunchedEffect(filePager, isSoftWrapEnabled) {
+        if (isColumnSelectionActive) {
+            copySelectionJob?.cancel()
+            copySelectionJob = null
+            columnSelectionAnchor = null
+            columnSelection = TextSelection.Empty
+            isColumnSelectionActive = false
+            isColumnSelectionGesture = false
+            pendingColumnSelectionGesture = false
+            isSelectionMenuVisible = false
+            pendingSelectionMenuPosition = null
+            dragStartBytePosition = 0L
+            dragEndBytePosition = 0L
+        }
         filePager.updateSoftWrapEnabled(isSoftWrapEnabled)
         onNavigate(filePager.viewportStartBytePosition)
     }
 
-    val selection = minOf(dragStartBytePosition, dragEndBytePosition) ..<
-        maxOf(dragStartBytePosition, dragEndBytePosition)
+    val contiguousSelection = TextSelection.Contiguous(
+        minOf(dragStartBytePosition, dragEndBytePosition)..<
+            maxOf(dragStartBytePosition, dragEndBytePosition)
+    )
+    val selection: TextSelection = if (isColumnSelectionActive) {
+        columnSelection
+    } else {
+        contiguousSelection
+    }
+
+    fun currentSelection(): TextSelection {
+        return if (isColumnSelectionActive) {
+            columnSelection
+        } else {
+            TextSelection.Contiguous(
+                minOf(dragStartBytePosition, dragEndBytePosition)..<
+                    maxOf(dragStartBytePosition, dragEndBytePosition)
+            )
+        }
+    }
 
     var scrollY by remember(filePager.viewportStartBytePosition) {
         mutableStateOf(0f)
@@ -263,34 +316,128 @@ fun GiantTextViewer(
         onPagerReady(filePager)
     }
 
-    fun copySelection() {
-        if (!selection.isEmpty()) {
-            val selectedLength = selection.endExclusive - selection.start
-            val requestedCopyLength = selectedLength
-                .coerceAtMost(TEXT_COPY_LIMIT_BYTES.toLong())
-                .toInt()
-            val window = fileReader.readTextUncached(selection.start, requestedCopyLength)
-            val copiedLength = window.byteRange.endExclusive - window.byteRange.start
-            clipboardManager.setText(AnnotatedString(text = window.text))
-            if (selectedLength > copiedLength) {
-                toastMessage = "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes." +
-                    "\nConsider copying to a file instead."
-            } else {
-                toastMessage = "Copied ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes."
-            }
+    DisposableEffect(filePath, refreshKey, encodingReloadKey) {
+        onDispose {
+            copySelectionJob?.cancel()
         }
     }
 
+    fun cancelCopySelection() {
+        val job = copySelectionJob
+        if (job?.isActive == true) {
+            job.cancel()
+            copySelectionJob = null
+            toastMessage = "Copy cancelled"
+        }
+    }
+
+    fun copySelection() {
+        val currentSelection = currentSelection()
+        if (currentSelection.isEmpty()) {
+            return
+        }
+
+        copySelectionJob?.cancel()
+        val knownSelectedLength = (currentSelection as? TextSelection.Contiguous)?.range?.let {
+            it.forwardLength()
+        }
+        toastMessage = "Copying selection..."
+        val copyJob = coroutineScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                val copiedSelection = withContext(Dispatchers.IO) {
+                    val copyContext = currentCoroutineContext()
+                    readSelectedText(
+                        fileReader = fileReader,
+                        filePager = filePager,
+                        selection = currentSelection,
+                        maxByteLength = TEXT_COPY_LIMIT_BYTES.toLong(),
+                        shouldContinue = {
+                            try {
+                                copyContext.ensureActive()
+                                true
+                            } catch (_: CancellationException) {
+                                false
+                            }
+                        },
+                    ).also {
+                        copyContext.ensureActive()
+                    }
+                }
+                val copiedLength = copiedSelection.byteLength
+                clipboardManager.setText(AnnotatedString(text = copiedSelection.text))
+                val isTrimmed = when {
+                    knownSelectedLength != null -> knownSelectedLength > copiedLength
+                    else -> copiedLength >= TEXT_COPY_LIMIT_BYTES.toLong()
+                }
+                if (isTrimmed) {
+                    toastMessage = if (currentSelection is TextSelection.Column) {
+                        "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes."
+                    } else {
+                        "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes." +
+                            "\nConsider copying to a file instead."
+                    }
+                } else {
+                    toastMessage = "Copied ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes."
+                }
+            } catch (_: CancellationException) {
+                if (copySelectionJob == this.coroutineContext[Job]) {
+                    toastMessage = "Copy cancelled"
+                }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                if (copySelectionJob == this.coroutineContext[Job]) {
+                    toastMessage = "Failed to copy selection"
+                }
+            } finally {
+                if (copySelectionJob == this.coroutineContext[Job]) {
+                    copySelectionJob = null
+                }
+            }
+        }
+        copySelectionJob = copyJob
+        copyJob.start()
+    }
+
     fun canCopySelectionAsText(): Boolean {
-        return !selection.isEmpty() && selection.endExclusive - selection.start <= TEXT_COPY_LIMIT_BYTES.toLong()
+        val currentSelection = currentSelection()
+        return when (currentSelection) {
+            TextSelection.Empty -> false
+            is TextSelection.Contiguous -> !currentSelection.range.isEmpty() &&
+                currentSelection.range.forwardLength() <= TEXT_COPY_LIMIT_BYTES.toLong()
+            is TextSelection.Column -> false
+        }
+    }
+
+    fun selectionSizeText(): String {
+        return when (val currentSelection = selection) {
+            TextSelection.Empty -> formatByteSize(0L)
+            is TextSelection.Contiguous -> formatByteSize(currentSelection.range.forwardLength())
+            is TextSelection.Column -> "Column selection"
+        }
     }
 
     fun copySelectionToFile(destination: File) {
-        copyFileByteRange(
-            source = file,
-            destination = destination,
-            byteRange = selection,
-        )
+        when (val currentSelection = currentSelection()) {
+            TextSelection.Empty -> Unit
+            is TextSelection.Contiguous -> copyFileByteRange(
+                source = file,
+                destination = destination,
+                byteRange = currentSelection.range,
+            )
+            is TextSelection.Column -> {
+                val selectedText = readSelectedText(
+                    fileReader = fileReader,
+                    filePager = filePager,
+                    selection = currentSelection,
+                    maxByteLength = if (currentSelection is TextSelection.Column) {
+                        TEXT_COPY_LIMIT_BYTES.toLong()
+                    } else {
+                        Long.MAX_VALUE
+                    },
+                )
+                destination.writeText(selectedText.text, fileReader.resolvedTextEncoding.charset)
+            }
+        }
     }
 
     suspend fun chooseSelectionDestination(): File? {
@@ -349,6 +496,11 @@ fun GiantTextViewer(
     fun clearSelection() {
         dragStartBytePosition = 0L
         dragEndBytePosition = 0L
+        columnSelectionAnchor = null
+        columnSelection = TextSelection.Empty
+        isColumnSelectionActive = false
+        isColumnSelectionGesture = false
+        pendingColumnSelectionGesture = false
         isSelectionMenuVisible = false
         pendingSelectionMenuPosition = null
     }
@@ -357,6 +509,9 @@ fun GiantTextViewer(
         val bytePosition = findBytePositionByCoordinatePx(filePager, point)
         dragStartBytePosition = bytePosition
         dragEndBytePosition = bytePosition
+        columnSelectionAnchor = null
+        columnSelection = TextSelection.Empty
+        isColumnSelectionActive = false
         selectionMenuPosition = point
     }
 
@@ -365,35 +520,96 @@ fun GiantTextViewer(
         selectionMenuPosition = point
     }
 
+    fun columnSelectionPointAt(point: Offset): ColumnSelectionPoint {
+        val row = rowAtPointInViewport(filePager, point)
+        val bytePosition = bytePositionAtXInRow(
+            row = row,
+            x = point.x,
+            textLayouter = filePager.textLayouter,
+            encodedLength = filePager::encodedLengthOfText,
+        )
+        return ColumnSelectionPoint(
+            bytePosition = bytePosition,
+            rowStartBytePosition = row.rowStartBytePosition,
+            x = point.x,
+        )
+    }
+
+    fun updateColumnSelectionTo(point: Offset): TextSelection.Column {
+        val focus = columnSelectionPointAt(point)
+        val anchor = columnSelectionAnchor ?: focus.also {
+            columnSelectionAnchor = it
+        }
+        val newSelection = buildColumnSelection(filePager, anchor, focus)
+        columnSelection = newSelection
+        isColumnSelectionActive = true
+        selectionMenuPosition = point
+        return newSelection
+    }
+
     /**
      * Starts a mouse-driven selection drag. When extending an existing selection, the original
      * anchor remains unchanged and only the active endpoint moves.
      */
-    fun beginSelectionGesture(point: Offset, isRangeExtension: Boolean) {
+    fun beginSelectionGesture(point: Offset, isRangeExtension: Boolean, isColumnSelection: Boolean) {
         draggedPoint = point
         isSelectionDragInProgress = true
         isSelectionMenuVisible = false
         pendingSelectionMenuPosition = null
-        isRangeExtensionGesture = isRangeExtension && !selection.isEmpty()
-        if (isRangeExtensionGesture) {
-            extendSelectionTo(point)
+        isColumnSelectionGesture = isColumnSelection || pendingColumnSelectionGesture
+        if (isColumnSelectionGesture) {
+            val canExtendColumnSelection = isRangeExtension && isColumnSelectionActive && !currentSelection().isEmpty() &&
+                columnSelectionAnchor != null
+            isRangeExtensionGesture = canExtendColumnSelection
+            if (!canExtendColumnSelection) {
+                columnSelectionAnchor = columnSelectionPointAt(point)
+            }
+            updateColumnSelectionTo(point)
         } else {
-            restartSelectionAt(point)
+            val canExtendContiguousSelection = isRangeExtension && !isColumnSelectionActive &&
+                !contiguousSelection.isEmpty()
+            isRangeExtensionGesture = canExtendContiguousSelection
+            if (isRangeExtensionGesture) {
+                extendSelectionTo(point)
+            } else {
+                restartSelectionAt(point)
+            }
         }
     }
 
     fun extendSelectionFromPress(point: Offset) {
         draggedPoint = point
         isRangeExtensionGesture = true
+        isColumnSelectionGesture = false
         extendSelectionTo(point)
         pendingSelectionMenuPosition = point
+    }
+
+    fun extendColumnSelectionFromPress(point: Offset, isRangeExtension: Boolean) {
+        draggedPoint = point
+        isColumnSelectionGesture = true
+        pendingColumnSelectionGesture = true
+        isSelectionMenuVisible = false
+        pendingSelectionMenuPosition = null
+        val canExtendColumnSelection = isRangeExtension && isColumnSelectionActive && !currentSelection().isEmpty() &&
+            columnSelectionAnchor != null
+        isRangeExtensionGesture = canExtendColumnSelection
+        if (!canExtendColumnSelection) {
+            columnSelectionAnchor = columnSelectionPointAt(point)
+        }
+        val newSelection = updateColumnSelectionTo(point)
+        if (!newSelection.isEmpty()) {
+            pendingSelectionMenuPosition = point
+        }
     }
 
     fun stopSelectionGesture() {
         draggedPoint = Offset.Zero
         isSelectionDragInProgress = false
         isRangeExtensionGesture = false
-        isSelectionMenuVisible = !selection.isEmpty()
+        isColumnSelectionGesture = false
+        pendingColumnSelectionGesture = false
+        isSelectionMenuVisible = !currentSelection().isEmpty()
         selectedSelectionMenuItemIndex = 0
     }
 
@@ -422,7 +638,11 @@ fun GiantTextViewer(
         while (isSelectionDragInProgress) {
             val rowDelta = selectionAutoScrollRows(draggedPoint)
             if (rowDelta != 0L && moveViewportByRows(rowDelta)) {
-                extendSelectionTo(draggedPoint)
+                if (isColumnSelectionGesture) {
+                    updateColumnSelectionTo(draggedPoint)
+                } else {
+                    extendSelectionTo(draggedPoint)
+                }
             }
             delay(SELECTION_AUTOSCROLL_INTERVAL_MILLIS)
         }
@@ -432,6 +652,9 @@ fun GiantTextViewer(
         val message = toastMessage ?: return@LaunchedEffect
         displayedToastMessage = message
         isToastVisible = true
+        if (message == "Copying selection...") {
+            return@LaunchedEffect
+        }
         delay(TOAST_DURATION_MILLIS)
         isToastVisible = false
         delay(TOAST_FADE_OUT_MILLIS.toLong())
@@ -465,7 +688,7 @@ fun GiantTextViewer(
 
     fun showSelectionMenuAt(point: Offset) {
         selectionMenuPosition = point
-        isSelectionMenuVisible = !selection.isEmpty()
+        isSelectionMenuVisible = !currentSelection().isEmpty()
         selectedSelectionMenuItemIndex = 0
     }
 
@@ -487,6 +710,22 @@ fun GiantTextViewer(
             point.y in topLeft.y..topLeft.y + menuHeightPx
     }
 
+    fun viewportRowAt(point: Offset): com.sunnychung.application.multiplatform.giantlogviewer.io.ViewportRow? {
+        val rows = filePager.viewportRows
+        if (rows.isEmpty()) {
+            return null
+        }
+        val rowHeight = filePager.rowHeight()
+        if (!java.lang.Float.isFinite(rowHeight) || rowHeight <= 0f) {
+            return null
+        }
+        val rowIndex = when {
+            point.y <= 0f -> 0
+            else -> floor(point.y / rowHeight).toInt().coerceIn(0, rows.lastIndex)
+        }
+        return rows[rowIndex]
+    }
+
     fun showPendingSelectionMenu() {
         pendingSelectionMenuPosition?.let {
             showSelectionMenuAt(it)
@@ -504,6 +743,12 @@ fun GiantTextViewer(
             println("onKeyEvent ${e.key}")
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
+                val isCtrlCWithoutCommand = e.key == Key.C && e.isCtrlPressed && !e.isMetaPressed
+                if ((e.key == Key.Escape || isCtrlCWithoutCommand) && copySelectionJob?.isActive == true) {
+                    cancelCopySelection()
+                    return@onPreviewKeyEvent true
+                }
+
                 if (e.key == Key.C && e.isCtrlOrCmdPressed()) {
                     if (isSelectionMenuVisible) {
                         dismissSelectionMenu()
@@ -627,17 +872,34 @@ fun GiantTextViewer(
                         return@onPointerEvent
                     }
 
+                    if (
+                        point != null &&
+                        point.x <= contentComponentWidth &&
+                        it.isColumnSelectionModifierPressed() &&
+                        !it.buttons.isSecondaryPressed
+                    ) {
+                        extendColumnSelectionFromPress(
+                            point = point,
+                            isRangeExtension = it.keyboardModifiers.isShiftPressed,
+                        )
+                        return@onPointerEvent
+                    }
+
                     if (isSelectionMenuVisible) {
                         if (point != null) {
                             val isRightClickOnSelection = it.buttons.isSecondaryPressed &&
                                 point.x <= contentComponentWidth &&
-                                findBytePositionByCoordinatePx(filePager, point) in selection
+                                viewportRowAt(point)?.let { row ->
+                                    findBytePositionByCoordinatePx(filePager, point) in selection.rangeInRow(row, filePager)
+                                } == true
                             val isShiftClickOnTextCanvas = it.keyboardModifiers.isShiftPressed &&
+                                point.x <= contentComponentWidth
+                            val isColumnClickOnTextCanvas = it.isColumnSelectionModifierPressed() &&
                                 point.x <= contentComponentWidth
                             if (isPointInSelectionMenu(point) || isRightClickOnSelection) {
                                 return@onPointerEvent
                             }
-                            if (isShiftClickOnTextCanvas) {
+                            if (isShiftClickOnTextCanvas || isColumnClickOnTextCanvas) {
                                 return@onPointerEvent
                             }
                         }
@@ -647,7 +909,7 @@ fun GiantTextViewer(
                     if (it.buttons.isSecondaryPressed) {
                         return@onPointerEvent
                     }
-                    if (!it.keyboardModifiers.isShiftPressed) {
+                    if (!it.keyboardModifiers.isShiftPressed && !it.isColumnSelectionModifierPressed()) {
                         clearSelection()
                     }
                 }
@@ -669,11 +931,19 @@ fun GiantTextViewer(
                         }
                         .onDrag(
                             onDragStart = {
-                                beginSelectionGesture(it, isRangeExtension = isRangeExtensionGesture)
+                                beginSelectionGesture(
+                                    point = it,
+                                    isRangeExtension = isRangeExtensionGesture,
+                                    isColumnSelection = isColumnSelectionGesture,
+                                )
                             },
                             onDrag = {
                                 draggedPoint += it
-                                extendSelectionTo(draggedPoint)
+                                if (isColumnSelectionGesture) {
+                                    updateColumnSelectionTo(draggedPoint)
+                                } else {
+                                    extendSelectionTo(draggedPoint)
+                                }
                             },
                             onDragEnd = {
                                 stopSelectionGesture()
@@ -698,9 +968,13 @@ fun GiantTextViewer(
                         .scrollable(scrollState, Orientation.Vertical)
                 ) {
                     fun handleSelectionPress(point: Offset, isRangeExtension: Boolean) {
-                        if (isRangeExtension && !selection.isEmpty()) {
+                        if (isRangeExtension && !isColumnSelectionActive && !contiguousSelection.isEmpty()) {
                             extendSelectionFromPress(point)
                         }
+                    }
+
+                    fun handleColumnSelectionPress(point: Offset, isRangeExtension: Boolean) {
+                        extendColumnSelectionFromPress(point, isRangeExtension)
                     }
 
                     val textToDisplay: List<CharSequence> = filePager.textInViewport
@@ -714,11 +988,21 @@ fun GiantTextViewer(
                                 val change = it.changes.firstOrNull() ?: return@onPointerEvent
                                 if (it.buttons.isSecondaryPressed) {
                                     val bytePosition = findBytePositionByCoordinatePx(filePager, change.position)
-                                    if (bytePosition in selection) {
+                                    val selectionRange = viewportRowAt(change.position)?.let { row ->
+                                        selection.rangeInRow(row, filePager)
+                                    } ?: 0L..<0L
+                                    if (bytePosition in selectionRange) {
                                         pendingSelectionMenuPosition = change.position
                                     } else if (isSelectionMenuVisible) {
                                         dismissSelectionMenu()
                                     }
+                                    return@onPointerEvent
+                                }
+                                if (it.isColumnSelectionModifierPressed()) {
+                                    handleColumnSelectionPress(
+                                        point = change.position,
+                                        isRangeExtension = it.keyboardModifiers.isShiftPressed,
+                                    )
                                     return@onPointerEvent
                                 }
                                 handleSelectionPress(
@@ -732,6 +1016,10 @@ fun GiantTextViewer(
                     ) {
 //                      with(density) {
                         textToDisplay.forEachIndexed { rowRelativeIndex, row ->
+                            val viewportRow = filePager.viewportRows.getOrNull(rowRelativeIndex)
+                            val selectedByteRangeInRow = viewportRow?.let {
+                                selection.rangeInRow(it, filePager)
+                            } ?: 0L..<0L
                             val rowYOffset = rowRelativeIndex * lineHeight
                             val globalXOffset = 0f
                             var accumulateXOffset = 0f
@@ -751,7 +1039,7 @@ fun GiantTextViewer(
                                     )
                                 }
 
-                                if (bytePosition in selection) {
+                                if (bytePosition in selectedByteRangeInRow) {
                                     drawRect(
                                         color = colors.fileBodyTheme.selectionBackground,
                                         topLeft = Offset(globalXOffset + accumulateXOffset, rowYOffset + charYOffset),
@@ -796,7 +1084,7 @@ fun GiantTextViewer(
                     if (isSelectionMenuVisible && !selection.isEmpty()) {
                         SelectionActionMenu(
                             items = selectionMenuItems(),
-                            selectionSizeText = formatByteSize(selection.endExclusive - selection.start),
+                            selectionSizeText = selectionSizeText(),
                             selectedIndex = selectedSelectionMenuItemIndex,
                             onSelectIndex = { selectedSelectionMenuItemIndex = it },
                             onDismiss = ::dismissSelectionMenu,

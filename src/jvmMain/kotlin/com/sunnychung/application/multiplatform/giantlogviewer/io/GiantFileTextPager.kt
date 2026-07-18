@@ -92,6 +92,104 @@ abstract class GiantFileTextPager(
         protected set
 
     private var rowsInViewport: List<ViewportRow> = emptyList()
+    internal val viewportRows: List<ViewportRow>
+        get() {
+            rebuildCacheIfInvalid()
+            return lock.read { rowsInViewport }
+        }
+
+    internal fun rowStartBytePositionAtOrBefore(bytePosition: Long): Long {
+        return lock.write { findBytePositionOfStartOfRow(bytePosition) }
+    }
+
+    internal fun isPhysicalLineStartBytePosition(bytePosition: Long): Boolean {
+        val position = bytePosition.coerceIn(fileReader.contentStartBytePosition, fileLength)
+        return lock.write { findPhysicalLineStartAtOrBeforeRaw(position) == position }
+    }
+
+    internal fun forEachViewportRowBetween(
+        firstRowStartBytePosition: Long,
+        secondRowStartBytePosition: Long,
+        onRow: (ViewportRow) -> Boolean,
+    ) {
+        val (to, initialRowStart, rowsPerBatch) = lock.write {
+            val from = minOf(firstRowStartBytePosition, secondRowStartBytePosition)
+                .coerceIn(fileReader.contentStartBytePosition, fileLength)
+            val to = maxOf(firstRowStartBytePosition, secondRowStartBytePosition)
+                .coerceIn(fileReader.contentStartBytePosition, fileLength)
+            Triple(
+                to,
+                from,
+                (numOfRowsInViewport + 1L).coerceAtLeast(2L),
+            )
+        }
+
+        var currentRowStart = initialRowStart
+        while (true) {
+            val batch = lock.write {
+                if (currentRowStart > to || currentRowStart >= fileLength) {
+                    return@write emptyList()
+                }
+                layoutRowsFromAdaptiveWindow(
+                    startBytePosition = currentRowStart,
+                    numOfCharsToRead = numOfCharsInViewport().coerceAtLeast(1L),
+                    maxRows = rowsPerBatch,
+                )
+            }
+            if (batch.isEmpty()) {
+                break
+            }
+
+            if (batch.size == 1) {
+                val row = batch[0]
+                if (row.rowStartBytePosition <= to) {
+                    onRow(row)
+                }
+                break
+            }
+
+            for (i in 0 until batch.lastIndex) {
+                val row = batch[i]
+                val nextRowStart = batch[i + 1].rowStartBytePosition
+                if (row.rowStartBytePosition > to) {
+                    return
+                }
+                if (!onRow(row)) {
+                    return
+                }
+                if (nextRowStart > to) {
+                    return
+                }
+            }
+
+            val nextRowStart = nextRowStartAfter(batch[batch.lastIndex - 1])
+            if (nextRowStart <= currentRowStart) {
+                break
+            }
+            currentRowStart = nextRowStart
+        }
+    }
+
+    private fun nextRowStartAfter(row: ViewportRow): Long {
+        if (!isSoftWrapEnabled) {
+            return (findNextPhysicalLineStartAfterRaw(row.rowStartBytePosition) ?: fileLength)
+                .coerceAtMost(fileLength)
+        }
+        val nextPhysicalLineStart = findNextPhysicalLineStartAfterRaw(row.physicalLineStartBytePosition)
+        if (row.text.isEmpty()) {
+            return (nextPhysicalLineStart ?: (row.rowStartBytePosition + fileReader.lineFeedByteLength))
+                .coerceAtMost(fileLength)
+        }
+        val nextRowStart = (row.visibleStartBytePosition + fileReader.encodedLength(row.text)).coerceAtMost(fileLength)
+        return if (nextPhysicalLineStart != null &&
+            nextRowStart >= lineContentEndBytePosition(row.physicalLineStartBytePosition, nextPhysicalLineStart)
+        ) {
+            nextPhysicalLineStart.coerceAtMost(fileLength)
+        } else {
+            nextRowStart
+        }
+    }
+
     private var lineBoundaryCacheFileLength: Long = fileLength
     private val nextPhysicalLineStartCache = LinkedHashMap<Long, Long>(MAX_LINE_BOUNDARY_CACHE_ENTRIES, 0.75f, true)
     private val lineKnownWithoutSeparatorUntilCache = LinkedHashMap<Long, Long>(MAX_LINE_BOUNDARY_CACHE_ENTRIES, 0.75f, true)
@@ -319,6 +417,9 @@ abstract class GiantFileTextPager(
             rowStarts.forEach {
                 if (rows.size.toLong() >= maxRows) {
                     return
+                }
+                if (it <= lastRowStart) {
+                    return@forEach
                 }
                 // `it` and `lastRowStart` are relative indexes produced by
                 // forEachRowStartInLine(), so both are already grapheme boundaries in `line`.
@@ -1226,9 +1327,10 @@ abstract class GiantFileTextPager(
         cachedLineKnownWithoutSeparatorUntil(lineStart)?.let {
             readStart = it.coerceIn(lineStart, fileLength)
         }
+        var scanChunkBytes = RAW_LINE_SCAN_INITIAL_CHUNK_BYTES
         while (readStart < fileLength) {
             val requestedLength = (fileLength - readStart)
-                .coerceAtMost(RAW_LINE_SCAN_CHUNK_BYTES.toLong())
+                .coerceAtMost(scanChunkBytes.toLong())
                 .toInt()
             val (bytes, range) = fileReader.readRawBytes(
                 readStart,
@@ -1237,9 +1339,25 @@ abstract class GiantFileTextPager(
             if (bytes.isEmpty()) {
                 return null
             }
-            fileReader.findFirstLineFeedBytePosition(bytes, range.start)?.let {
-                return (it + fileReader.lineFeedByteLength).coerceAtMost(fileLength)
-                    .also { nextLineStart -> cacheNextPhysicalLineStart(lineStart, nextLineStart) }
+            val lineFeedBytePositions = fileReader.findLineFeedBytePositions(bytes, range.start)
+            if (lineFeedBytePositions.isNotEmpty()) {
+                var currentLineStart = lineStart
+                var firstNextLineStart: Long? = null
+                lineFeedBytePositions.forEach {
+                    val nextLineStart = (it + fileReader.lineFeedByteLength).coerceAtMost(fileLength)
+                    if (nextLineStart > currentLineStart) {
+                        if (firstNextLineStart == null) {
+                            firstNextLineStart = nextLineStart
+                        }
+                        cacheNextPhysicalLineStart(currentLineStart, nextLineStart)
+                        currentLineStart = nextLineStart
+                    }
+                }
+                val nextReadStart = readStart + requestedLength
+                if (currentLineStart < nextReadStart) {
+                    cacheLineKnownWithoutSeparatorUntil(currentLineStart, nextReadStart.coerceAtMost(fileLength))
+                }
+                return firstNextLineStart
             }
 
             val nextReadStart = readStart + requestedLength
@@ -1248,6 +1366,7 @@ abstract class GiantFileTextPager(
             }
             cacheLineKnownWithoutSeparatorUntil(lineStart, nextReadStart)
             readStart = nextReadStart
+            scanChunkBytes = (scanChunkBytes * 2).coerceAtMost(RAW_LINE_SCAN_CHUNK_BYTES)
         }
         return fileLength.also { cacheNextPhysicalLineStart(lineStart, it) }
     }
@@ -1664,9 +1783,10 @@ abstract class GiantFileTextPager(
         private const val MAX_REGEX_SEARCH_WINDOW_MIB: Int = 4
         private const val MAX_EXACT_BACKWARD_ROW_RECONSTRUCTION_BYTES: Long = MAX_EXACT_BACKWARD_ROW_RECONSTRUCTION_MIB * BYTES_PER_MIB
         private const val RAW_LINE_SCAN_CHUNK_BYTES: Int = 4 * BYTES_PER_MIB
+        private const val RAW_LINE_SCAN_INITIAL_CHUNK_BYTES: Int = 4 * 1024
         private const val SEARCH_WINDOW_PAGE_COUNT: Long = 4L
         private const val MAX_INITIAL_ROW_LIST_CAPACITY: Int = 1024
-        private const val MAX_LINE_BOUNDARY_CACHE_ENTRIES: Int = 512
+        private const val MAX_LINE_BOUNDARY_CACHE_ENTRIES: Int = 8192
         private const val MAX_DIRECT_BACKWARD_ROW_STEPS: Long = 128L
         private const val MAX_REGEX_SEARCH_WINDOW_BYTES: Int = MAX_REGEX_SEARCH_WINDOW_MIB * BYTES_PER_MIB
         private const val MAX_BYTES_PER_GRAPHEME_CLUSTER_ESTIMATE: Int = 32
