@@ -15,8 +15,9 @@ _Changes since 1.2.0_
 - Status bar, which shows current byte range, last modified date time and current encoding
 - Shift-Click to extend selection
 - Dragging out of view to scroll and extend selection
-- Copy selection to a file
+- Copy selection(s) to a file
 - Option to turn off soft wrapping
+- Column / Vertical selection
 
 ### Changed
 - New appends to the opened file are not automatically followed anymore
