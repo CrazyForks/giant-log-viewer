@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -67,6 +68,7 @@ fun SelectionActionMenu(
     selectedIndex: Int,
     onSelectIndex: (Int) -> Unit,
     onDismiss: () -> Unit,
+    onActionComplete: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalColor.current
@@ -101,7 +103,11 @@ fun SelectionActionMenu(
                 size = 24.dp,
                 color = colors.contextMenuText,
                 modifier = Modifier
-                    .clickable { onDismiss() }
+                    .focusProperties { canFocus = false }
+                    .clickable {
+                        onDismiss()
+                        onActionComplete()
+                    }
                     .padding(horizontal = 2.dp, vertical = 2.dp)
             )
         }
@@ -118,6 +124,7 @@ fun SelectionActionMenu(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
+                    .focusProperties { canFocus = false }
                     .fillMaxWidth()
                     .background(if (isSelected) colors.fileBodyTheme.selectionBackground else colors.contextMenuBackground)
                     .onPointerEvent(eventType = PointerEventType.Enter) {
@@ -126,7 +133,11 @@ fun SelectionActionMenu(
                     .clickable {
                         onSelectIndex(index)
                         onDismiss()
-                        item.action()
+                        try {
+                            item.action()
+                        } finally {
+                            onActionComplete()
+                        }
                     }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             )

@@ -227,6 +227,7 @@ fun GiantTextViewer(
     var displayedToastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
     var isToastVisible by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
     var copySelectionJob by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Job?>(null) }
+    var keyboardShortcutFocusRequest by remember(filePath, refreshKey, encodingReloadKey) { mutableIntStateOf(0) }
     val toastAlpha by animateFloatAsState(
         targetValue = if (isToastVisible) 1f else 0f,
         animationSpec = tween(durationMillis = (if (isToastVisible) 200L else TOAST_FADE_OUT_MILLIS).toInt()),
@@ -448,10 +449,14 @@ fun GiantTextViewer(
         return File(selectedFile.absolutePath())
     }
 
-    fun copySelectionToFileWithPrompt() {
+    fun requestKeyboardShortcutFocusRestore() {
+        keyboardShortcutFocusRequest++
+    }
+
+    fun copySelectionToFileWithPrompt(onComplete: () -> Unit = {}) {
         coroutineScope.launch {
-            val destination = chooseSelectionDestination() ?: return@launch
             try {
+                val destination = chooseSelectionDestination() ?: return@launch
                 withContext(Dispatchers.IO) {
                     copySelectionToFile(destination)
                 }
@@ -459,6 +464,8 @@ fun GiantTextViewer(
             } catch (e: Throwable) {
                 e.printStackTrace()
                 toastMessage = "Failed to copy selection to a file"
+            } finally {
+                onComplete()
             }
         }
     }
@@ -676,7 +683,9 @@ fun GiantTextViewer(
                 }
                 append("text")
             }, ::copySelection))
-            add(SelectionMenuItem(AnnotatedString("Copy selection to a file"), ::copySelectionToFileWithPrompt))
+            add(SelectionMenuItem(AnnotatedString("Copy selection to a file")) {
+                copySelectionToFileWithPrompt(::requestKeyboardShortcutFocusRestore)
+            })
         }
     }
 
@@ -737,6 +746,15 @@ fun GiantTextViewer(
         dismissSelectionMenu()
     }
 
+    LaunchedEffect(keyboardShortcutFocusRequest) {
+        if (keyboardShortcutFocusRequest > 0) {
+            delay(1L)
+            focusRequester.requestFocus()
+            delay(50L)
+            focusRequester.requestFocus()
+        }
+    }
+
     Column(modifier
 //        .onKeyEvent { e ->
         .onPreviewKeyEvent { e ->
@@ -780,6 +798,7 @@ fun GiantTextViewer(
                         Key.Enter -> {
                             menuItems.getOrNull(selectedSelectionMenuItemIndex)?.action?.invoke()
                             dismissSelectionMenu()
+                            requestKeyboardShortcutFocusRestore()
                             return@onPreviewKeyEvent true
                         }
                     }
@@ -1088,6 +1107,7 @@ fun GiantTextViewer(
                             selectedIndex = selectedSelectionMenuItemIndex,
                             onSelectIndex = { selectedSelectionMenuItemIndex = it },
                             onDismiss = ::dismissSelectionMenu,
+                            onActionComplete = ::requestKeyboardShortcutFocusRestore,
                             modifier = Modifier
                                 .offset {
                                     val menuWidthPx = with(density) { 240.dp.roundToPx() }
@@ -1173,6 +1193,7 @@ fun GiantTextViewer(
                     reloadFileForEncoding(it)
                 }
             },
+            onMenuActionComplete = ::requestKeyboardShortcutFocusRestore,
             modifier = Modifier.onPointerEvent(eventType = PointerEventType.Press) {
                 dismissSelectionMenu()
             },
@@ -1226,6 +1247,7 @@ private fun GiantTextViewerStatusBar(
     selectedTextEncoding: TextEncoding,
     resolvedTextEncoding: ResolvedTextEncoding,
     onSelectTextEncoding: (TextEncoding) -> Unit,
+    onMenuActionComplete: () -> Unit = {},
 ) {
     val colors = LocalColor.current
     val font = LocalFont.current
@@ -1348,6 +1370,7 @@ private fun GiantTextViewerStatusBar(
                     )
                 },
                 textStyleModifier = { it.copy(fontSize = fontSize, fontWeight = FontWeight.Bold) },
+                onItemActionComplete = onMenuActionComplete,
                 modifier = Modifier.wrapContentSize()
             )
         }
