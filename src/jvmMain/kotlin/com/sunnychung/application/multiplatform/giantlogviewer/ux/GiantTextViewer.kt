@@ -149,6 +149,7 @@ fun GiantTextViewer(
     dismissSelectionMenuKey: Int = 0,
     bottomContent: @Composable () -> Unit = {},
     shouldRequestFocus: Boolean = true,
+    isKeyboardShortcutEnabled: Boolean = true,
 ) {
     val file = File(filePath)
     if (!file.isFile) {
@@ -758,6 +759,9 @@ fun GiantTextViewer(
     Column(modifier
 //        .onKeyEvent { e ->
         .onPreviewKeyEvent { e ->
+            if (!isKeyboardShortcutEnabled) {
+                return@onPreviewKeyEvent false
+            }
             println("onKeyEvent ${e.key}")
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {

@@ -211,6 +211,7 @@ private fun AppMainContent(
     var searchOptionsOfResult by remember { mutableStateOf<SearchOptions?>(null) }
     var searchEntryOfResult by remember { mutableStateOf("") }
     var searchBarReloadKey by remember { mutableIntStateOf(0) }
+    var isSearchFieldFocused by remember { mutableStateOf(false) }
 
     fun resetSearchResultState(recreateSearchField: Boolean = false) {
         searchCursor = filePager?.viewportStartBytePosition ?: 0L
@@ -246,6 +247,12 @@ private fun AppMainContent(
 
     LaunchedEffect(selectedFilePath) {
         resetSearchResultState()
+    }
+
+    LaunchedEffect(isSearchBarVisible) {
+        if (!isSearchBarVisible) {
+            isSearchFieldFocused = false
+        }
     }
 
     Column(modifier.fillMaxSize()) {
@@ -402,6 +409,9 @@ private fun AppMainContent(
                                     searchEntryOfResult = searchEntry
                                 }
                             },
+                            onSearchFieldFocusChanged = {
+                                isSearchFieldFocused = it
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(colors.background)
@@ -420,6 +430,7 @@ private fun AppMainContent(
                     }
                 },
                 shouldRequestFocus = !isSearchBarVisible,
+                isKeyboardShortcutEnabled = !isSearchFieldFocused,
                 modifier = Modifier.matchParentSize()
                     .focusRequester(viewerFocusRequester)
             )
