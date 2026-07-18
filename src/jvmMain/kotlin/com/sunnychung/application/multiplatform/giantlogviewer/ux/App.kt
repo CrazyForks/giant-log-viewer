@@ -212,15 +212,24 @@ private fun AppMainContent(
     var searchEntryOfResult by remember { mutableStateOf("") }
     var searchBarReloadKey by remember { mutableIntStateOf(0) }
     var isSearchFieldFocused by remember { mutableStateOf(false) }
+    var isSearchError by remember { mutableStateOf(false) }
 
     fun resetSearchResultState(recreateSearchField: Boolean = false) {
         searchCursor = filePager?.viewportStartBytePosition ?: 0L
         highlightByteRange = 0L .. -1L
         searchOptionsOfResult = null
         searchEntryOfResult = ""
+        isSearchError = false
         if (recreateSearchField) {
             searchBarReloadKey++
         }
+    }
+
+    fun setSearchError() {
+        highlightByteRange = 0L .. -1L
+        searchOptionsOfResult = searchOptions
+        searchEntryOfResult = searchEntry
+        isSearchError = true
     }
 
     fun isSearchResultStateCurrent(): Boolean {
@@ -241,7 +250,10 @@ private fun AppMainContent(
                 Pattern.quote(searchEntry).toRegex(regexOption)
             }
             return pattern
-        } catch (_: Throwable) {}
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            setSearchError()
+        }
         return null
     }
 
@@ -336,6 +348,8 @@ private fun AppMainContent(
                             isSearchBackwardDefault = isSearchBackwardDefault,
                             searchResultType = if (!isSearchResultStateCurrent()) {
                                 SearchResultType.NotYetSearch
+                            } else if (isSearchError) {
+                                SearchResultType.Error
                             } else if (highlightByteRange.isEmpty()) {
                                 SearchResultType.NoResult
                             } else {
@@ -365,8 +379,10 @@ private fun AppMainContent(
                                     pager.searchBackward(searchCursor, regex)
                                 } catch (e: Throwable) {
                                     e.printStackTrace()
+                                    setSearchError()
                                     return@TextSearchBar
                                 }
+                                isSearchError = false
                                 if (!result.isEmpty()) {
                                     searchCursor = result.start
                                     println("search found at $result")
@@ -394,8 +410,10 @@ private fun AppMainContent(
                                         pager.searchAtAndForward(searchStartBytePosition, regex)
                                     } catch (e: Throwable) {
                                         e.printStackTrace()
+                                        setSearchError()
                                         return@TextSearchBar
                                     }
+                                    isSearchError = false
                                     if (!result.isEmpty()) {
                                         searchCursor = result.start
                                         println("search found at $result")

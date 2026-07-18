@@ -93,6 +93,7 @@ fun TextSearchBar(
                 SearchResultType.NotYetSearch -> colors.textFieldBackground
                 SearchResultType.NoResult -> colors.searchTextFieldBackgroundNoResult
                 SearchResultType.SomeResult -> colors.searchTextFieldBackgroundSomeResult
+                SearchResultType.Error -> colors.searchTextFieldBackgroundError
             },
             modifier = Modifier.weight(1f)
                 .onFocusChanged { onSearchFieldFocusChanged(it.hasFocus) }
