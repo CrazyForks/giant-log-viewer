@@ -1,6 +1,5 @@
-package com.sunnychung.application.multiplatform.giantlogviewer
+﻿package com.sunnychung.application.multiplatform.giantlogviewer
 
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application

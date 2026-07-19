@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.DragData
@@ -54,6 +55,10 @@ import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchResul
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.application.multiplatform.giantlogviewer.viewstate.FileViewState
+import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.dialogs.openFilePicker
+import io.github.vinceglb.filekit.path
+import kotlinx.coroutines.launch
 import java.io.File
 import java.net.URI
 import java.util.regex.Pattern
@@ -193,6 +198,8 @@ private fun AppMainContent(
     val isNavigationLocked = fileViewState.isFollowing
 
     val viewerFocusRequester = remember { FocusRequester() }
+    val openFileCoroutineScope = rememberCoroutineScope()
+    var shouldFocusViewerAfterSelect by remember { mutableStateOf(false) }
     var filePager: GiantFileTextPager? by remember { mutableStateOf(null) }
 
     var isSearchBarVisible by remember { mutableStateOf(false) }
@@ -284,15 +291,22 @@ private fun AppMainContent(
 
                             println("f: ${uri.scheme} ${File(uri).absolutePath}")
                             onSelectFile(File(uri))
-
-                            viewerFocusRequester.requestFocus()
+                            shouldFocusViewerAfterSelect = true
                         }
                     }
                 )
                 .background(colors.fileBodyTheme.background)
         ) {
             if (selectedFilePath.isEmpty()) {
-                EmptyFileView()
+                EmptyFileView(
+                    onOpenFileClick = {
+                        openFileCoroutineScope.launch {
+                            val file = FileKit.openFilePicker(title = "Open text file") ?: return@launch
+                            onSelectFile(File(file.path))
+                            shouldFocusViewerAfterSelect = true
+                        }
+                    }
+                )
                 onSelectFile(null)
                 return@Box
             }
@@ -315,6 +329,13 @@ private fun AppMainContent(
             }
 
             onSelectFile(file)
+
+            LaunchedEffect(selectedFilePath, shouldFocusViewerAfterSelect) {
+                if (shouldFocusViewerAfterSelect) {
+                    viewerFocusRequester.requestFocus()
+                    shouldFocusViewerAfterSelect = false
+                }
+            }
 
             GiantTextViewer(
                 fileViewState = fileViewState,
