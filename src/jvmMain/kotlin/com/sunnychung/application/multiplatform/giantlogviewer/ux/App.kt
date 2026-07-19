@@ -347,6 +347,11 @@ private fun AppMainContent(
                 onDocumentContentChanged = {
                     resetSearchResultState(recreateSearchField = true)
                 },
+                onCloseFile = {
+                    isSearchBarVisible = false
+                    filePager = null
+                    onSelectFile(null)
+                },
                 onSearchRequest = {
                     if (it == SearchMode.None) {
                         isSearchBarVisible = false

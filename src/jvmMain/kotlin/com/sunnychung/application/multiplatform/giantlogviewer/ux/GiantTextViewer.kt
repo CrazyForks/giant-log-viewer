@@ -145,6 +145,7 @@ fun GiantTextViewer(
     onPagerReady: (GiantFileTextPager?) -> Unit,
     onNavigate: (bytePosition: Long) -> Unit,
     onDocumentContentChanged: () -> Unit,
+    onCloseFile: () -> Unit = {},
     onSearchRequest: (SearchMode) -> Unit,
     dismissSelectionMenuKey: Int = 0,
     bottomContent: @Composable () -> Unit = {},
@@ -808,6 +809,11 @@ fun GiantTextViewer(
                     }
                 }
                 when {
+                    e.key == Key.Q && !e.isCtrlPressed && !e.isMetaPressed && !e.isAltPressed && !e.isShiftPressed -> {
+                        onCloseFile()
+                        return@onPreviewKeyEvent true
+                    }
+
                     e.key == Key.F && e.isCtrlOrCmdPressed() -> onSearchRequest(SearchMode.Forward)
 
                     e.key == Key.F && e.isShiftPressed -> {
