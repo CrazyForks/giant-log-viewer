@@ -98,7 +98,7 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     KeyBinding("⇧F", "Follow new appends"),
                     KeyBinding("Ctrl-C", "Cancel follow/copy"),
                     KeyBinding("Esc", "Exit search"),
-                    KeyBinding("q", "Close file"),
+                    KeyBinding("q", "Close file / Exit app"),
                 ),
                 modifier = Modifier.weight(.43f).fillMaxHeight()
             )

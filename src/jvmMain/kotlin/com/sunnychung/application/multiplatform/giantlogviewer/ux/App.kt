@@ -2,6 +2,7 @@ package com.sunnychung.application.multiplatform.giantlogviewer.ux
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,6 +30,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -65,7 +67,7 @@ import java.util.regex.Pattern
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-fun App() {
+fun App(onExitApplication: () -> Unit = {}) {
     var selectedFileName by remember { mutableStateOf("") }
     var isShowHelpWindow by remember { mutableStateOf(false) }
     var isShowAboutWindow by remember { mutableStateOf(false) }
@@ -169,6 +171,7 @@ fun App() {
                 fileViewState = fileViewState,
                 isSoftWrapEnabled = isSoftWrapEnabled,
                 dismissSelectionMenuKey = dismissSelectionMenuKey,
+                onExitApplication = onExitApplication,
                 onSelectFile = { file ->
                     selectedFileName = file?.name ?: ""
                     selectedFilePath = file?.path ?: ""
@@ -191,6 +194,7 @@ private fun AppMainContent(
     fileViewState: FileViewState,
     isSoftWrapEnabled: Boolean,
     dismissSelectionMenuKey: Int,
+    onExitApplication: () -> Unit,
     onSelectFile: (File?) -> Unit,
 ) {
     val colors = LocalColor.current
@@ -198,6 +202,7 @@ private fun AppMainContent(
     val isNavigationLocked = fileViewState.isFollowing
 
     val viewerFocusRequester = remember { FocusRequester() }
+    val emptyFileFocusRequester = remember { FocusRequester() }
     val openFileCoroutineScope = rememberCoroutineScope()
     var shouldFocusViewerAfterSelect by remember { mutableStateOf(false) }
     var filePager: GiantFileTextPager? by remember { mutableStateOf(null) }
@@ -298,7 +303,25 @@ private fun AppMainContent(
                 .background(colors.fileBodyTheme.background)
         ) {
             if (selectedFilePath.isEmpty()) {
+                LaunchedEffect(Unit) {
+                    emptyFileFocusRequester.requestFocus()
+                }
+
                 EmptyFileView(
+                    modifier = Modifier
+                        .onPreviewKeyEvent { e ->
+                            if (
+                                e.type == KeyEventType.KeyDown &&
+                                e.key == Key.Q
+                            ) {
+                                onExitApplication()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        .focusRequester(emptyFileFocusRequester)
+                        .focusable(),
                     onOpenFileClick = {
                         openFileCoroutineScope.launch {
                             val file = FileKit.openFilePicker(title = "Open text file") ?: return@launch

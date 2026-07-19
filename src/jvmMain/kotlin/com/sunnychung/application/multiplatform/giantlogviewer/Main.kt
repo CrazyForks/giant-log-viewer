@@ -29,7 +29,7 @@ fun main(args: Array<String>) {
             icon = painterResource(Res.drawable.appicon),
         ) {
             setMinimumSize(250.dp, 150.dp)
-            App()
+            App(onExitApplication = ::exitApplication)
         }
     }
 }
