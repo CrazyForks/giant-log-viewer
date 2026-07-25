@@ -127,6 +127,7 @@ private const val SELECTION_AUTOSCROLL_MAX_ROWS_PER_TICK = 8L
 private const val TEXT_COPY_LIMIT_BYTES = 5 * BYTES_PER_MIB
 private const val TOAST_DURATION_MILLIS = 3_000L
 private const val TOAST_FADE_OUT_MILLIS = 580L
+const val HORIZONTAL_SCROLL_MULTIPLIER = 20f
 
 private fun PointerEvent.isColumnSelectionModifierPressed(): Boolean {
     return keyboardModifiers.isAltPressed || keyboardModifiers.isAltGraphPressed
@@ -986,8 +987,8 @@ fun GiantTextViewer(
                                 acc + change.scrollDelta
                             }
                             val horizontalDelta = when {
-                                scrollDelta.x != 0f -> scrollDelta.x
-                                it.keyboardModifiers.isShiftPressed && scrollDelta.y != 0f -> scrollDelta.y
+                                scrollDelta.x != 0f -> scrollDelta.x * HORIZONTAL_SCROLL_MULTIPLIER
+                                it.keyboardModifiers.isShiftPressed && scrollDelta.y != 0f -> scrollDelta.y * HORIZONTAL_SCROLL_MULTIPLIER
                                 else -> 0f
                             }
                             if (horizontalDelta != 0f) {

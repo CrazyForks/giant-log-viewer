@@ -102,8 +102,8 @@ fun HorizontalIndicatorView(
                     acc + change.scrollDelta
                 }
                 val horizontalDelta = when {
-                    scrollDelta.x != 0f -> scrollDelta.x
-                    it.keyboardModifiers.isShiftPressed && scrollDelta.y != 0f -> scrollDelta.y
+                    scrollDelta.x != 0f -> scrollDelta.x * HORIZONTAL_SCROLL_MULTIPLIER
+                    it.keyboardModifiers.isShiftPressed && scrollDelta.y != 0f -> scrollDelta.y * HORIZONTAL_SCROLL_MULTIPLIER
                     else -> 0f
                 }
                 if (horizontalDelta != 0f) {
