@@ -22,6 +22,9 @@ fun main(args: Array<String>) {
         AppContext.instance.ResourceManager.loadAllResources()
     }
 
+    // Parse command line arguments for initial file path
+    val initialFilePath = parseInitialFilePath(args)
+
     application {
         Window(
             onCloseRequest = ::exitApplication,
@@ -29,7 +32,27 @@ fun main(args: Array<String>) {
             icon = painterResource(Res.drawable.appicon),
         ) {
             setMinimumSize(250.dp, 150.dp)
-            App(onExitApplication = ::exitApplication)
+            App(
+                onExitApplication = ::exitApplication,
+                initialFilePath = initialFilePath
+            )
         }
     }
+}
+
+/**
+ * Parse command line arguments to extract the initial file path.
+ * Supports: "Giant Log Viewer.exe" "C:\path\to\file.log"
+ */
+fun parseInitialFilePath(args: Array<String>): String? {
+    if (args.isEmpty()) return null
+
+    val filePath = args.firstOrNull { it.isNotBlank() } ?: return null
+
+    val file = File(filePath)
+    if (!file.exists() || !file.isFile || !file.canRead()) {
+        return null
+    }
+
+    return filePath
 }

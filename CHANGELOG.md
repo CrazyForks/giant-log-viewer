@@ -18,6 +18,8 @@ _Changes since 1.2.0_
 - Copy selection(s) to a file
 - Option to turn off soft wrapping
 - Column / Vertical selection
+- Press Q to close the file or the application
+- Support opening a file via command line, "Open with" from file explorer or other external applications ![Open by Windows Explorer](doc/media/open-with.png)
 
 ### Changed
 - New appends to the opened file are not automatically followed anymore

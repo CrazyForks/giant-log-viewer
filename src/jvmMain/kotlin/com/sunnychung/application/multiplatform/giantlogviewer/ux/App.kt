@@ -67,7 +67,10 @@ import java.util.regex.Pattern
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-fun App(onExitApplication: () -> Unit = {}) {
+fun App(
+    onExitApplication: () -> Unit = {},
+    initialFilePath: String? = null
+) {
     var selectedFileName by remember { mutableStateOf("") }
     var isShowHelpWindow by remember { mutableStateOf(false) }
     var isShowAboutWindow by remember { mutableStateOf(false) }
@@ -78,7 +81,7 @@ fun App(onExitApplication: () -> Unit = {}) {
         .subscribeStateToEntity(ThemeDI)
         .themes
 
-    var selectedFilePath by remember { mutableStateOf("") }
+    var selectedFilePath by remember { mutableStateOf(initialFilePath ?: "") }
     var fileViewState: FileViewState by remember(selectedFilePath) { mutableStateOf(FileViewState(File(selectedFilePath))) }
     var dismissSelectionMenuKey by remember { mutableIntStateOf(0) }
     val isReadableFileSelected = selectedFilePath
