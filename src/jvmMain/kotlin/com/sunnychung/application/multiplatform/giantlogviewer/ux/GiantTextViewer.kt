@@ -770,17 +770,22 @@ fun WindowScope.GiantTextViewer(
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
                 val isCtrlCWithoutCommand = e.key == Key.C && e.isCtrlPressed && !e.isMetaPressed
+                var hasCancelledCopySelection = false
                 if ((e.key == Key.Escape || isCtrlCWithoutCommand) && copySelectionJob?.isActive == true) {
+                    println("cancelCopySelection")
                     cancelCopySelection()
-                    return@onPreviewKeyEvent true
+                    hasCancelledCopySelection = true
+                    // continue to remaining actions
                 }
 
                 if (e.key == Key.C && e.isCtrlOrCmdPressed()) {
                     if (isSelectionMenuVisible) {
                         dismissSelectionMenu()
                     }
-                    copySelection()
-                    return@onPreviewKeyEvent true
+                    if (!hasCancelledCopySelection) {
+                        copySelection()
+                    }
+                    // continue to remaining actions
                 }
 
                 if (isSelectionMenuVisible) {

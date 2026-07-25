@@ -26,6 +26,7 @@ import androidx.compose.ui.DragData
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -115,6 +116,7 @@ fun WindowScope.App(
                         size = 20.dp,
                         color = colors.menuBarIconColor,
                         modifier = Modifier.padding(5.dp)
+                            .focusProperties { canFocus = false }
                             .clickable {
                                 isShowAboutWindow = true
                             }
@@ -137,6 +139,7 @@ fun WindowScope.App(
                             size = 20.dp,
                             color = if (!fileViewState.isFollowing) colors.menuBarIconColor else colors.menuBarIconActivated,
                             modifier = Modifier.padding(5.dp)
+                                .focusProperties { canFocus = false }
                                 .clickable {
                                     fileViewState.isFollowing = !fileViewState.isFollowing
                                     viewerFocusRequester.requestFocus()
@@ -149,6 +152,7 @@ fun WindowScope.App(
                         color = if (isSoftWrapEnabled) colors.menuBarIconActivated else colors.menuBarIconColor,
                         enabled = isReadableFileSelected,
                         modifier = Modifier.padding(5.dp)
+                            .focusProperties { canFocus = false }
                             .clickable(enabled = isReadableFileSelected) {
                                 isSoftWrapEnabled = !isSoftWrapEnabled
                                 viewerFocusRequester.requestFocus()
@@ -159,6 +163,7 @@ fun WindowScope.App(
                         size = 20.dp,
                         color = colors.menuBarIconColor,
                         modifier = Modifier.padding(5.dp)
+                            .focusProperties { canFocus = false }
                             .clickable {
                                 isShowHelpWindow = true
                             }
@@ -168,6 +173,7 @@ fun WindowScope.App(
                         size = 20.dp,
                         color = colors.menuBarIconColor,
                         modifier = Modifier.padding(5.dp)
+                            .focusProperties { canFocus = false }
                             .clickable {
                                 isShowSettingWindow = true
                             }
