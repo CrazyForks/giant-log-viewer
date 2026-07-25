@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.WindowScope
 import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.fast_forward
 import com.sunnychung.application.giantlogviewer.generated.resources.fast_forward_filled
@@ -67,7 +69,7 @@ import java.util.regex.Pattern
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-fun App(
+fun WindowScope.App(
     onExitApplication: () -> Unit = {},
     initialFilePath: String? = null
 ) {
@@ -97,76 +99,80 @@ fun App(
         val viewerFocusRequester = remember { FocusRequester() }
 
         Column(Modifier.fillMaxSize()) {
-            Row(
+            WindowDraggableArea(
                 modifier = Modifier.fillMaxWidth().height(30.dp)
                     .background(colors.menuBarBackground)
                     .onPointerEvent(eventType = PointerEventType.Press) {
                         dismissSelectionMenuKey++
-                    },
-                verticalAlignment = Alignment.CenterVertically
+                    }
             ) {
-                AppImage(
-                    resource = Res.drawable.info,
-                    size = 20.dp,
-                    color = colors.menuBarIconColor,
-                    modifier = Modifier.padding(5.dp)
-                        .clickable {
-                            isShowAboutWindow = true
-                        }
-                )
-                BasicText(
-                    text = selectedFileName,
-                    style = TextStyle(
-                        color = colors.menuBarTextColor,
-                        fontFamily = LocalFont.current.normalFontFamily,
-                        textAlign = TextAlign.Center,
-                    ),
-                    softWrap = false,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
-                )
-                if (fileViewState.isFileExist) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     AppImage(
-                        resource = if (!fileViewState.isFollowing) Res.drawable.fast_forward else Res.drawable.fast_forward_filled,
+                        resource = Res.drawable.info,
                         size = 20.dp,
-                        color = if (!fileViewState.isFollowing) colors.menuBarIconColor else colors.menuBarIconActivated,
+                        color = colors.menuBarIconColor,
                         modifier = Modifier.padding(5.dp)
                             .clickable {
-                                fileViewState.isFollowing = !fileViewState.isFollowing
+                                isShowAboutWindow = true
+                            }
+                    )
+                    BasicText(
+                        text = selectedFileName,
+                        style = TextStyle(
+                            color = colors.menuBarTextColor,
+                            fontFamily = LocalFont.current.normalFontFamily,
+                            textAlign = TextAlign.Center,
+                        ),
+                        softWrap = false,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                    )
+                    if (fileViewState.isFileExist) {
+                        AppImage(
+                            resource = if (!fileViewState.isFollowing) Res.drawable.fast_forward else Res.drawable.fast_forward_filled,
+                            size = 20.dp,
+                            color = if (!fileViewState.isFollowing) colors.menuBarIconColor else colors.menuBarIconActivated,
+                            modifier = Modifier.padding(5.dp)
+                                .clickable {
+                                    fileViewState.isFollowing = !fileViewState.isFollowing
+                                    viewerFocusRequester.requestFocus()
+                                }
+                        )
+                    }
+                    AppImage(
+                        resource = Res.drawable.wrap_text,
+                        size = 20.dp,
+                        color = if (isSoftWrapEnabled) colors.menuBarIconActivated else colors.menuBarIconColor,
+                        enabled = isReadableFileSelected,
+                        modifier = Modifier.padding(5.dp)
+                            .clickable(enabled = isReadableFileSelected) {
+                                isSoftWrapEnabled = !isSoftWrapEnabled
                                 viewerFocusRequester.requestFocus()
                             }
                     )
+                    AppImage(
+                        resource = Res.drawable.help,
+                        size = 20.dp,
+                        color = colors.menuBarIconColor,
+                        modifier = Modifier.padding(5.dp)
+                            .clickable {
+                                isShowHelpWindow = true
+                            }
+                    )
+                    AppImage(
+                        resource = Res.drawable.setting,
+                        size = 20.dp,
+                        color = colors.menuBarIconColor,
+                        modifier = Modifier.padding(5.dp)
+                            .clickable {
+                                isShowSettingWindow = true
+                            }
+                    )
                 }
-                AppImage(
-                    resource = Res.drawable.wrap_text,
-                    size = 20.dp,
-                    color = if (isSoftWrapEnabled) colors.menuBarIconActivated else colors.menuBarIconColor,
-                    enabled = isReadableFileSelected,
-                    modifier = Modifier.padding(5.dp)
-                        .clickable(enabled = isReadableFileSelected) {
-                            isSoftWrapEnabled = !isSoftWrapEnabled
-                            viewerFocusRequester.requestFocus()
-                        }
-                )
-                AppImage(
-                    resource = Res.drawable.help,
-                    size = 20.dp,
-                    color = colors.menuBarIconColor,
-                    modifier = Modifier.padding(5.dp)
-                        .clickable {
-                            isShowHelpWindow = true
-                        }
-                )
-                AppImage(
-                    resource = Res.drawable.setting,
-                    size = 20.dp,
-                    color = colors.menuBarIconColor,
-                    modifier = Modifier.padding(5.dp)
-                        .clickable {
-                            isShowSettingWindow = true
-                        }
-                )
             }
 
             AppMainContent(
@@ -191,7 +197,7 @@ fun App(
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-private fun AppMainContent(
+private fun WindowScope.AppMainContent(
     modifier: Modifier = Modifier,
     selectedFilePath: String,
     fileViewState: FileViewState,

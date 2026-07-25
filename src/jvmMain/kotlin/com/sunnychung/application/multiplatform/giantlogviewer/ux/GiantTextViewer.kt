@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -74,6 +75,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.WindowScope
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.absolutePath
@@ -136,7 +138,7 @@ private fun PointerEvent.isColumnSelectionModifierPressed(): Boolean {
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, TemporaryBigTextApi::class)
 @Composable
-fun GiantTextViewer(
+fun WindowScope.GiantTextViewer(
     modifier: Modifier,
     fileViewState: FileViewState,
     isSoftWrapEnabled: Boolean,
@@ -1193,22 +1195,24 @@ fun GiantTextViewer(
 
         bottomContent()
 
-        GiantTextViewerStatusBar(
-            filePager = filePager,
-            fileLength = fileLength,
-            lastModifiedMillis = lastModifiedMillis,
-            selectedTextEncoding = selectedTextEncoding,
-            resolvedTextEncoding = fileReader.resolvedTextEncoding,
-            onSelectTextEncoding = {
-                if (it != selectedTextEncoding || it == TextEncoding.Auto) {
-                    reloadFileForEncoding(it)
-                }
-            },
-            onMenuActionComplete = ::requestKeyboardShortcutFocusRestore,
-            modifier = Modifier.onPointerEvent(eventType = PointerEventType.Press) {
-                dismissSelectionMenu()
-            },
-        )
+        WindowDraggableArea {
+            GiantTextViewerStatusBar(
+                filePager = filePager,
+                fileLength = fileLength,
+                lastModifiedMillis = lastModifiedMillis,
+                selectedTextEncoding = selectedTextEncoding,
+                resolvedTextEncoding = fileReader.resolvedTextEncoding,
+                onSelectTextEncoding = {
+                    if (it != selectedTextEncoding || it == TextEncoding.Auto) {
+                        reloadFileForEncoding(it)
+                    }
+                },
+                onMenuActionComplete = ::requestKeyboardShortcutFocusRestore,
+                modifier = Modifier.onPointerEvent(eventType = PointerEventType.Press) {
+                    dismissSelectionMenu()
+                },
+            )
+        }
     }
 
     LaunchedEffect(filePath, refreshKey, encodingReloadKey, shouldRequestFocus) {
