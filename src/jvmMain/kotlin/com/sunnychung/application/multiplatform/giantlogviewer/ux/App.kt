@@ -187,6 +187,7 @@ fun WindowScope.App(
                 isSoftWrapEnabled = isSoftWrapEnabled,
                 dismissSelectionMenuKey = dismissSelectionMenuKey,
                 onExitApplication = onExitApplication,
+                onShowHelpWindow = { isShowHelpWindow = true },
                 onSelectFile = { file ->
                     selectedFileName = file?.name ?: ""
                     selectedFilePath = file?.path ?: ""
@@ -210,6 +211,7 @@ private fun WindowScope.AppMainContent(
     isSoftWrapEnabled: Boolean,
     dismissSelectionMenuKey: Int,
     onExitApplication: () -> Unit,
+    onShowHelpWindow: () -> Unit,
     onSelectFile: (File?) -> Unit,
 ) {
     val colors = LocalColor.current
@@ -325,14 +327,19 @@ private fun WindowScope.AppMainContent(
                 EmptyFileView(
                     modifier = Modifier
                         .onPreviewKeyEvent { e ->
-                            if (
-                                e.type == KeyEventType.KeyDown &&
-                                e.key == Key.Q
-                            ) {
-                                onExitApplication()
-                                true
-                            } else {
-                                false
+                            if (e.type != KeyEventType.KeyDown) {
+                                return@onPreviewKeyEvent false
+                            }
+                            when {
+//                                e.key == Key.H -> {
+//                                    onShowHelpWindow()
+//                                    true
+//                                }
+                                e.key == Key.Q -> {
+                                    onExitApplication()
+                                    true
+                                }
+                                else -> false
                             }
                         }
                         .focusRequester(emptyFileFocusRequester)
@@ -398,6 +405,7 @@ private fun WindowScope.AppMainContent(
                         isSearchBackwardDefault = (it == SearchMode.Backward)
                     }
                 },
+                onHelpRequest = onShowHelpWindow,
                 dismissSelectionMenuKey = dismissSelectionMenuKey,
                 bottomContent = {
                     if (isSearchBarVisible) {

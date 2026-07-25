@@ -150,6 +150,7 @@ fun WindowScope.GiantTextViewer(
     onDocumentContentChanged: () -> Unit,
     onCloseFile: () -> Unit = {},
     onSearchRequest: (SearchMode) -> Unit,
+    onHelpRequest: () -> Unit = {},
     dismissSelectionMenuKey: Int = 0,
     bottomContent: @Composable () -> Unit = {},
     shouldRequestFocus: Boolean = true,
@@ -817,8 +818,13 @@ fun WindowScope.GiantTextViewer(
                     }
                 }
                 when {
-                    e.key == Key.Q && !e.isCtrlPressed && !e.isMetaPressed && !e.isAltPressed && !e.isShiftPressed -> {
+                    e.key == Key.Q -> {
                         onCloseFile()
+                        return@onPreviewKeyEvent true
+                    }
+
+                    e.key == Key.H -> {
+                        onHelpRequest()
                         return@onPreviewKeyEvent true
                     }
 
@@ -831,6 +837,8 @@ fun WindowScope.GiantTextViewer(
 
                     e.key == Key.F -> return@onPreviewKeyEvent navigate { moveToNextPage() }
                     e.key == Key.B -> return@onPreviewKeyEvent navigate { moveToPrevPage() }
+                    e.key == Key.PageDown -> return@onPreviewKeyEvent navigate { moveToNextPage() }
+                    e.key == Key.PageUp -> return@onPreviewKeyEvent navigate { moveToPrevPage() }
                     e.key == Key.DirectionUp && e.isAltPressed -> return@onPreviewKeyEvent navigate { moveToPrevPage() }
                     e.key == Key.DirectionDown && e.isAltPressed -> return@onPreviewKeyEvent navigate { moveToNextPage() }
 
