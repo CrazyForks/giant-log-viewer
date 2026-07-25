@@ -286,6 +286,14 @@ private fun WindowScope.AppMainContent(
         return null
     }
 
+    val onOpenFileClick = {
+        openFileCoroutineScope.launch {
+            val file = FileKit.openFilePicker(title = "Open text file") ?: return@launch
+            onSelectFile(File(file.path))
+            shouldFocusViewerAfterSelect = true
+        }
+    }
+
     LaunchedEffect(selectedFilePath) {
         resetSearchResultState()
     }
@@ -335,6 +343,10 @@ private fun WindowScope.AppMainContent(
 //                                    onShowHelpWindow()
 //                                    true
 //                                }
+                                e.key == Key.Enter -> {
+                                    onOpenFileClick()
+                                    true
+                                }
                                 e.key == Key.Q -> {
                                     onExitApplication()
                                     true
@@ -345,11 +357,7 @@ private fun WindowScope.AppMainContent(
                         .focusRequester(emptyFileFocusRequester)
                         .focusable(),
                     onOpenFileClick = {
-                        openFileCoroutineScope.launch {
-                            val file = FileKit.openFilePicker(title = "Open text file") ?: return@launch
-                            onSelectFile(File(file.path))
-                            shouldFocusViewerAfterSelect = true
-                        }
+                        onOpenFileClick()
                     }
                 )
                 onSelectFile(null)
