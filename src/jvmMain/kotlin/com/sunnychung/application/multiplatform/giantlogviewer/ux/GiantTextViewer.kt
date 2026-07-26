@@ -342,7 +342,7 @@ fun WindowScope.GiantTextViewer(
         val knownSelectedLength = (currentSelection as? TextSelection.Contiguous)?.range?.let {
             it.forwardLength()
         }
-        toastManager.showToast("Copying selection...")
+        toastManager.showToast("Copying selection...", isPersistent = true)
         val copyJob = coroutineScope.launch(start = CoroutineStart.LAZY) {
             try {
                 val copiedSelection = withContext(Dispatchers.IO) {

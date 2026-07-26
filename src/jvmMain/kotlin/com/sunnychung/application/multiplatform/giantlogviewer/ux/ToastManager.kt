@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -33,17 +34,21 @@ private const val TOAST_RESHOW_FADE_OUT_MILLIS = TOAST_FADE_OUT_MILLIS / 5L
 class ToastManager {
     private val _message = mutableStateOf<String?>(null)
     private val _messageLastUpdate = mutableStateOf<KInstant?>(null)
+    private val _isMessagePersistent = mutableStateOf(false)
     val message: State<String?> get() = _message
     val messageLastUpdate: State<KInstant?> get() = _messageLastUpdate
+    val isMessagePersistent: State<Boolean> get() = _isMessagePersistent
 
-    fun showToast(message: String) {
+    fun showToast(message: String, isPersistent: Boolean = false) {
         _message.value = message
+        _isMessagePersistent.value = isPersistent
         _messageLastUpdate.value = KInstant.now()
     }
 
     fun consume(message: String) {
         if (_message.value == message) {
             _message.value = null
+            _isMessagePersistent.value = false
         }
     }
 }
@@ -69,8 +74,14 @@ fun AppToastOverlay(
         onDispose { state.cancel() }
     }
 
-    LaunchedEffect(toastManager.messageLastUpdate.value, toastManager.message.value) {
-        toastManager.message.value?.let(state::show)
+    LaunchedEffect(
+        toastManager.messageLastUpdate.value,
+        toastManager.message.value,
+        toastManager.isMessagePersistent.value,
+    ) {
+        toastManager.message.value?.let {
+            state.show(it, toastManager.isMessagePersistent.value)
+        }
     }
 
     Box(modifier) {
@@ -82,7 +93,7 @@ fun AppToastOverlay(
                     .padding(bottom = 48.dp)
                     .graphicsLayer { alpha = toastAlpha }
                     .focusProperties { canFocus = false }
-                    .clickable { state.dismiss(message) },
+                    .clickable(enabled = state.isToastDismissible) { state.dismiss(message) },
             )
         }
     }
@@ -109,10 +120,12 @@ private class ToastOverlayState(
         private set
     var fadeOutDuration by mutableStateOf(TOAST_FADE_OUT_MILLIS)
         private set
+    var isToastDismissible by mutableStateOf(true)
+        private set
 
     private var toastJob: Job? = null
 
-    fun show(message: String) = replaceToastJob {
+    fun show(message: String, isPersistent: Boolean) = replaceToastJob {
         if (isToastVisible || displayedMessage != null) {
             fadeOutDuration = TOAST_RESHOW_FADE_OUT_MILLIS
             isToastVisible = false
@@ -120,18 +133,27 @@ private class ToastOverlayState(
         }
         displayedMessage = message
         fadeOutDuration = TOAST_FADE_OUT_MILLIS
+        isToastDismissible = !isPersistent
         isToastVisible = true
+        if (isPersistent) {
+            awaitCancellation()
+        }
         delay(TOAST_DURATION_MILLIS)
         isToastVisible = false
         delay(TOAST_FADE_OUT_MILLIS)
         consumeDisplayedToast(message)
     }
 
-    fun dismiss(message: String) = replaceToastJob {
-        fadeOutDuration = TOAST_FADE_OUT_MILLIS
-        isToastVisible = false
-        delay(TOAST_FADE_OUT_MILLIS)
-        consumeDisplayedToast(message)
+    fun dismiss(message: String) {
+        if (!isToastDismissible || displayedMessage != message) {
+            return
+        }
+        replaceToastJob {
+            fadeOutDuration = TOAST_FADE_OUT_MILLIS
+            isToastVisible = false
+            delay(TOAST_FADE_OUT_MILLIS)
+            consumeDisplayedToast(message)
+        }
     }
 
     fun cancel() {
@@ -147,6 +169,7 @@ private class ToastOverlayState(
     private fun consumeDisplayedToast(message: String) {
         if (displayedMessage == message) {
             displayedMessage = null
+            isToastDismissible = true
             toastManager.consume(message)
         }
     }

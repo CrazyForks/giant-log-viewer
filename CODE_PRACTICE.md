@@ -20,3 +20,4 @@
 - Keep logging concise and meaningful (`log.v/d/i/w/e`). Avoid leaking PII or noisy stack traces.
 - Commit Kotlin formatting conventions: 4-space indentation, trailing commas where Kotlin style encourages, and idiomatic use of `when`, null-safety, and collection helpers.
 - Ensure new code includes tests or manual verification steps when touching networking or state synchronization. Document those steps in PRs.
+- All source code files must end with a blank line.
