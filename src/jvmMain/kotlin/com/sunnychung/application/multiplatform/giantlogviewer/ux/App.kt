@@ -63,7 +63,6 @@ import com.sunnychung.application.multiplatform.giantlogviewer.viewstate.FileVie
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.dialogs.openFilePicker
 import io.github.vinceglb.filekit.path
-import kotlinx.coroutines.launch
 import java.io.File
 import java.net.URI
 import java.util.regex.Pattern
@@ -221,6 +220,7 @@ private fun WindowScope.AppMainContent(
     val viewerFocusRequester = remember { FocusRequester() }
     val emptyFileFocusRequester = remember { FocusRequester() }
     val openFileCoroutineScope = rememberCoroutineScope()
+    var isShowOpenFileDialog by remember { mutableStateOf<Boolean>(false) }
     var shouldFocusViewerAfterSelect by remember { mutableStateOf(false) }
     var filePager: GiantFileTextPager? by remember { mutableStateOf(null) }
 
@@ -286,12 +286,18 @@ private fun WindowScope.AppMainContent(
         return null
     }
 
-    val onOpenFileClick = {
-        openFileCoroutineScope.launch {
-            val file = FileKit.openFilePicker(title = "Open text file") ?: return@launch
+    LaunchedEffect(isShowOpenFileDialog) {
+        if (isShowOpenFileDialog) {
+            val file = FileKit.openFilePicker(title = "Open text file")
+            isShowOpenFileDialog = false
+            file ?: return@LaunchedEffect
             onSelectFile(File(file.path))
             shouldFocusViewerAfterSelect = true
         }
+    }
+
+    val onOpenFileClick = {
+        isShowOpenFileDialog = true
     }
 
     LaunchedEffect(selectedFilePath) {
@@ -356,9 +362,7 @@ private fun WindowScope.AppMainContent(
                         }
                         .focusRequester(emptyFileFocusRequester)
                         .focusable(),
-                    onOpenFileClick = {
-                        onOpenFileClick()
-                    }
+                    onOpenFileClick = onOpenFileClick
                 )
                 onSelectFile(null)
                 return@Box
