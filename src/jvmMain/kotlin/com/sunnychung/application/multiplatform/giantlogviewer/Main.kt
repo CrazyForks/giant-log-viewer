@@ -58,22 +58,22 @@ fun parseLogLevel(args: Array<String>): String? {
         // Check for --logLevel=VALUE format
         if (arg.startsWith("--logLevel=", ignoreCase = true)) {
             val levelStr = arg.substringAfter("=")
-            try {
-                val parsedLevel = LogLevel.valueOf(levelStr.uppercase())
+            val parsedLevel = LogLevel.parseFrom(levelStr)
+            if (parsedLevel != null) {
                 log.logLevel = parsedLevel
                 return null
-            } catch (e: IllegalArgumentException) {
+            } else {
                 return "Invalid log level: '$levelStr'. Valid levels are: VERBOSE, DEBUG, INFO, WARN, ERROR. Continuing with current log level."
             }
         }
         // Check for --logLevel VALUE format
         if (arg.equals("--logLevel", ignoreCase = true) && i + 1 < args.size) {
             val levelStr = args[i + 1]
-            try {
-                val parsedLevel = LogLevel.valueOf(levelStr.uppercase())
+            val parsedLevel = LogLevel.parseFrom(levelStr)
+            if (parsedLevel != null) {
                 log.logLevel = parsedLevel
                 return null
-            } catch (e: IllegalArgumentException) {
+            } else {
                 return "Invalid log level: '$levelStr'. Valid levels are: VERBOSE, DEBUG, INFO, WARN, ERROR. Continuing with current log level."
             }
         }
@@ -89,9 +89,17 @@ fun parseLogLevel(args: Array<String>): String? {
 fun parseInitialFilePath(args: Array<String>): String? {
     if (args.isEmpty()) return null
 
+    var isSkippingLogLevelValue = false
     val filePath = args.firstOrNull { arg ->
-        arg.isNotBlank() &&
-            !arg.startsWith("--logLevel", ignoreCase = true)
+        if (isSkippingLogLevelValue) {
+            isSkippingLogLevelValue = false
+            false
+        } else if (arg.equals("--logLevel", ignoreCase = true)) {
+            isSkippingLogLevelValue = true
+            false
+        } else {
+            arg.isNotBlank() && !arg.startsWith("--logLevel=", ignoreCase = true)
+        }
     } ?: return null
 
     val file = File(filePath)

@@ -35,7 +35,18 @@ class SimpleLogger(var logLevel: LogLevel) {
 }
 
 enum class LogLevel {
-    VERBOSE, DEBUG, INFO, WARN, ERROR
+    VERBOSE, DEBUG, INFO, WARN, ERROR;
+
+    companion object {
+        fun parseFrom(value: String): LogLevel? = when (value.trim().uppercase()) {
+            "VERBOSE" -> VERBOSE
+            "DEBUG" -> DEBUG
+            "INFO" -> INFO
+            "WARN" -> WARN
+            "ERROR" -> ERROR
+            else -> null
+        }
+    }
 }
 
 val log = SimpleLogger(LogLevel.VERBOSE)
