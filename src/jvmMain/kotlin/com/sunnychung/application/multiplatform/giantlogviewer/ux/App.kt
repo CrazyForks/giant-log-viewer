@@ -57,6 +57,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContex
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptions
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchResultType
+import com.sunnychung.application.multiplatform.giantlogviewer.util.log
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.application.multiplatform.giantlogviewer.viewstate.FileViewState
@@ -317,15 +318,15 @@ private fun WindowScope.AppMainContent(
                 .weight(1f)
                 .onExternalDrag(
                     onDragStart = { drag ->
-                        println("drag: $drag | ${drag.dragData}")
+                        log.d("drag: $drag | ${drag.dragData}")
                     },
                     onDrop = { drop ->
-                        println("drop: $drop | ${drop.dragData}")
+                        log.d("drop: $drop | ${drop.dragData}")
                         if (drop.dragData is DragData.FilesList) {
-                            println("drop files: ${(drop.dragData as DragData.FilesList).readFiles()}")
+                            log.i("drop files: ${(drop.dragData as DragData.FilesList).readFiles()}")
                             val uri = URI((drop.dragData as DragData.FilesList).readFiles().first())
 
-                            println("f: ${uri.scheme} ${File(uri).absolutePath}")
+                            log.i("f: ${uri.scheme} ${File(uri).absolutePath}")
                             onSelectFile(File(uri))
                             shouldFocusViewerAfterSelect = true
                         }
@@ -469,7 +470,7 @@ private fun WindowScope.AppMainContent(
                                 isSearchError = false
                                 if (!result.isEmpty()) {
                                     searchCursor = result.start
-                                    println("search found at $result")
+                                    log.d("search found at $result")
                                     pager.moveToRowOfBytePosition(result.start)
                                 } else {
                                     searchCursor = pager.fileReader.contentStartBytePosition
@@ -500,7 +501,7 @@ private fun WindowScope.AppMainContent(
                                     isSearchError = false
                                     if (!result.isEmpty()) {
                                         searchCursor = result.start
-                                        println("search found at $result")
+                                        log.d("search found at $result")
                                         pager.moveToRowOfBytePosition(result.start)
                                     } else {
                                         searchCursor = fileViewState.fileLength

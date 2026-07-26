@@ -96,6 +96,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceB
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.util.GraphemeClusters
 import com.sunnychung.application.multiplatform.giantlogviewer.util.formatByteSize
+import com.sunnychung.application.multiplatform.giantlogviewer.util.log
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.AppFont
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
@@ -158,11 +159,11 @@ fun WindowScope.GiantTextViewer(
 ) {
     val file = File(filePath)
     if (!file.isFile) {
-        println("File is not a file")
+        log.w("File is not a file")
         return
     }
 
-    println("recompose $filePath $refreshKey")
+    log.d("recompose $filePath $refreshKey")
 
     var contentComponentWidth by remember { mutableIntStateOf(0) }
     var contentComponentHeight by remember { mutableIntStateOf(0) }
@@ -767,13 +768,13 @@ fun WindowScope.GiantTextViewer(
             if (!isKeyboardShortcutEnabled) {
                 return@onPreviewKeyEvent false
             }
-            println("onKeyEvent ${e.key}")
+            log.d("onKeyEvent ${e.key}")
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
                 val isCtrlCWithoutCommand = e.key == Key.C && e.isCtrlPressed && !e.isMetaPressed
                 var hasCancelledCopySelection = false
                 if ((e.key == Key.Escape || isCtrlCWithoutCommand) && copySelectionJob?.isActive == true) {
-                    println("cancelCopySelection")
+                    log.i("cancelCopySelection")
                     cancelCopySelection()
                     hasCancelledCopySelection = true
                     // continue to remaining actions
@@ -895,7 +896,7 @@ fun WindowScope.GiantTextViewer(
                         return@onPreviewKeyEvent false
                     }
                 }
-                println("onKeyEvent handled in ${KInstant.now() - startTime}")
+                log.d("onKeyEvent handled in ${KInstant.now() - startTime}")
                 return@onPreviewKeyEvent true
             }
             false
@@ -1203,7 +1204,7 @@ fun WindowScope.GiantTextViewer(
                     }
             )
 
-            println("prepare rendering in ${KInstant.now() - startTime}")
+            log.v("prepare rendering in ${KInstant.now() - startTime}")
         }
 
         bottomContent()
@@ -1259,9 +1260,9 @@ fun WindowScope.GiantTextViewer(
 
     DisposableEffect(fileReader) {
         onDispose {
-            println("Disposing ${fileReader.filePath}")
+            log.d("Disposing ${fileReader.filePath}")
             fileReader.close()
-            println("Disposed ${fileReader.filePath}")
+            log.d("Disposed ${fileReader.filePath}")
         }
     }
 }

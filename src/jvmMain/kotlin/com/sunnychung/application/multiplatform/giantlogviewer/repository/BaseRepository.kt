@@ -4,6 +4,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.document.Document
 import com.sunnychung.application.multiplatform.giantlogviewer.document.DocumentIdentifier
 import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContext
 import com.sunnychung.application.multiplatform.giantlogviewer.util.chunkedLatest
+import com.sunnychung.application.multiplatform.giantlogviewer.util.log
 import com.sunnychung.lib.multiplatform.kdatetime.extension.milliseconds
 import com.sunnychung.lib.multiplatform.kdatetime.extension.seconds
 import kotlinx.coroutines.CancellationException
@@ -48,7 +49,7 @@ abstract class BaseRepository<T : Document<ID>, ID : DocumentIdentifier>(private
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
-                    println("Encountered exception in $name: ${e.message}\n${e.stackTraceToString()}")
+                    log.w("Encountered exception in $name: ${e.message}\n${e.stackTraceToString()}")
                 }
             }
             .launchIn(coroutineScope)
@@ -114,7 +115,7 @@ abstract class BaseRepository<T : Document<ID>, ID : DocumentIdentifier>(private
     fun subscribeToEntity(identifier: ID): Flow<Pair<T, Long>> = updateFlow
 //        .onSubscription { emit(identifier) }
         .filter { it.first == identifier }
-        .map { (readOrDefault(identifier) to it.second).also { println("sub map $it") } }
+        .map { (readOrDefault(identifier) to it.second).also { log.d("sub map $it") } }
 
     open fun update(identifier: ID) {
         updateFlow.tryEmit(identifier to Random.nextLong())

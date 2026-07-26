@@ -1,6 +1,7 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.manager
 
 import com.sunnychung.application.multiplatform.giantlogviewer.document.DocumentIdentifier
+import com.sunnychung.application.multiplatform.giantlogviewer.util.log
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
@@ -35,7 +36,7 @@ class PersistenceManager {
 
     internal suspend inline fun <T> writeToFile(relativePath: String, serializer: KSerializer<T>, document: T) {
         val file = dataFile(relativePath)
-        println("writeToFile -- ${file.absolutePath}")
+        log.d("writeToFile -- ${file.absolutePath}")
         file.parentFile.mkdirs()
 //        val bytes = codec.encodeToByteArray(serializer, document)
 //        fileManager.writeToFile(

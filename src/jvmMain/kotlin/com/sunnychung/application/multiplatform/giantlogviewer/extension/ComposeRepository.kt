@@ -5,6 +5,7 @@ import androidx.compose.runtime.collectAsState
 import com.sunnychung.application.multiplatform.giantlogviewer.document.Document
 import com.sunnychung.application.multiplatform.giantlogviewer.document.DocumentIdentifier
 import com.sunnychung.application.multiplatform.giantlogviewer.repository.BaseRepository
+import com.sunnychung.application.multiplatform.giantlogviewer.util.log
 import kotlinx.coroutines.runBlocking
 
 @Composable
@@ -13,7 +14,7 @@ fun <T : Document<ID>, ID : DocumentIdentifier> BaseRepository<T, ID>.subscribeS
         .collectAsState(null)
         .value
         .also {
-            println("collectAsState $it")
+            log.v("collectAsState $it")
         }
         ?.first
         ?: runBlocking {
