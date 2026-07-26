@@ -32,6 +32,7 @@ kotlin {
                 implementation("io.github.sunny-chung:composable-table:1.3.1")
                 implementation("io.github.vinceglb:filekit-core:0.10.0-beta04")
                 implementation("io.github.vinceglb:filekit-dialogs:0.10.0-beta04")
+                implementation("net.java.dev.jna:jna-platform:5.17.0")
 
                 // no longer in use
                 // implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.1")

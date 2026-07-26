@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -25,6 +26,7 @@ import androidx.compose.ui.DragData
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -39,6 +41,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.WindowScope
 import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.fast_forward
 import com.sunnychung.application.giantlogviewer.generated.resources.fast_forward_filled
@@ -54,20 +57,31 @@ import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContex
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchOptions
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchResultType
+import com.sunnychung.application.multiplatform.giantlogviewer.util.log
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
 import com.sunnychung.application.multiplatform.giantlogviewer.viewstate.FileViewState
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.dialogs.openFilePicker
 import io.github.vinceglb.filekit.path
-import kotlinx.coroutines.launch
 import java.io.File
 import java.net.URI
 import java.util.regex.Pattern
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-fun App(onExitApplication: () -> Unit = {}) {
+fun WindowScope.App(
+    onExitApplication: () -> Unit = {},
+    initialFilePath: String? = null,
+    toastManager: ToastManager = remember { ToastManager() },
+    initialToastMessage: String? = null,
+) {
+    LaunchedEffect(initialToastMessage) {
+        initialToastMessage?.let {
+            toastManager.showToast(it)
+        }
+    }
+
     var selectedFileName by remember { mutableStateOf("") }
     var isShowHelpWindow by remember { mutableStateOf(false) }
     var isShowAboutWindow by remember { mutableStateOf(false) }
@@ -78,7 +92,7 @@ fun App(onExitApplication: () -> Unit = {}) {
         .subscribeStateToEntity(ThemeDI)
         .themes
 
-    var selectedFilePath by remember { mutableStateOf("") }
+    var selectedFilePath by remember { mutableStateOf(initialFilePath ?: "") }
     var fileViewState: FileViewState by remember(selectedFilePath) { mutableStateOf(FileViewState(File(selectedFilePath))) }
     var dismissSelectionMenuKey by remember { mutableIntStateOf(0) }
     val isReadableFileSelected = selectedFilePath
@@ -94,90 +108,105 @@ fun App(onExitApplication: () -> Unit = {}) {
         val viewerFocusRequester = remember { FocusRequester() }
 
         Column(Modifier.fillMaxSize()) {
-            Row(
+            WindowDraggableArea(
                 modifier = Modifier.fillMaxWidth().height(30.dp)
                     .background(colors.menuBarBackground)
                     .onPointerEvent(eventType = PointerEventType.Press) {
                         dismissSelectionMenuKey++
-                    },
-                verticalAlignment = Alignment.CenterVertically
+                    }
             ) {
-                AppImage(
-                    resource = Res.drawable.info,
-                    size = 20.dp,
-                    color = colors.menuBarIconColor,
-                    modifier = Modifier.padding(5.dp)
-                        .clickable {
-                            isShowAboutWindow = true
-                        }
-                )
-                BasicText(
-                    text = selectedFileName,
-                    style = TextStyle(
-                        color = colors.menuBarTextColor,
-                        fontFamily = LocalFont.current.normalFontFamily,
-                        textAlign = TextAlign.Center,
-                    ),
-                    softWrap = false,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
-                )
-                if (fileViewState.isFileExist) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     AppImage(
-                        resource = if (!fileViewState.isFollowing) Res.drawable.fast_forward else Res.drawable.fast_forward_filled,
+                        resource = Res.drawable.info,
                         size = 20.dp,
-                        color = if (!fileViewState.isFollowing) colors.menuBarIconColor else colors.menuBarIconActivated,
+                        color = colors.menuBarIconColor,
                         modifier = Modifier.padding(5.dp)
+                            .focusProperties { canFocus = false }
                             .clickable {
-                                fileViewState.isFollowing = !fileViewState.isFollowing
+                                isShowAboutWindow = true
+                            }
+                    )
+                    BasicText(
+                        text = selectedFileName,
+                        style = TextStyle(
+                            color = colors.menuBarTextColor,
+                            fontFamily = LocalFont.current.normalFontFamily,
+                            textAlign = TextAlign.Center,
+                        ),
+                        softWrap = false,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                    )
+                    if (fileViewState.isFileExist) {
+                        AppImage(
+                            resource = if (!fileViewState.isFollowing) Res.drawable.fast_forward else Res.drawable.fast_forward_filled,
+                            size = 20.dp,
+                            color = if (!fileViewState.isFollowing) colors.menuBarIconColor else colors.menuBarIconActivated,
+                            modifier = Modifier.padding(5.dp)
+                                .focusProperties { canFocus = false }
+                                .clickable {
+                                    fileViewState.isFollowing = !fileViewState.isFollowing
+                                    viewerFocusRequester.requestFocus()
+                                }
+                        )
+                    }
+                    AppImage(
+                        resource = Res.drawable.wrap_text,
+                        size = 20.dp,
+                        color = if (isSoftWrapEnabled) colors.menuBarIconActivated else colors.menuBarIconColor,
+                        enabled = isReadableFileSelected,
+                        modifier = Modifier.padding(5.dp)
+                            .focusProperties { canFocus = false }
+                            .clickable(enabled = isReadableFileSelected) {
+                                isSoftWrapEnabled = !isSoftWrapEnabled
                                 viewerFocusRequester.requestFocus()
                             }
                     )
+                    AppImage(
+                        resource = Res.drawable.help,
+                        size = 20.dp,
+                        color = colors.menuBarIconColor,
+                        modifier = Modifier.padding(5.dp)
+                            .focusProperties { canFocus = false }
+                            .clickable {
+                                isShowHelpWindow = true
+                            }
+                    )
+                    AppImage(
+                        resource = Res.drawable.setting,
+                        size = 20.dp,
+                        color = colors.menuBarIconColor,
+                        modifier = Modifier.padding(5.dp)
+                            .focusProperties { canFocus = false }
+                            .clickable {
+                                isShowSettingWindow = true
+                            }
+                    )
                 }
-                AppImage(
-                    resource = Res.drawable.wrap_text,
-                    size = 20.dp,
-                    color = if (isSoftWrapEnabled) colors.menuBarIconActivated else colors.menuBarIconColor,
-                    enabled = isReadableFileSelected,
-                    modifier = Modifier.padding(5.dp)
-                        .clickable(enabled = isReadableFileSelected) {
-                            isSoftWrapEnabled = !isSoftWrapEnabled
-                            viewerFocusRequester.requestFocus()
-                        }
-                )
-                AppImage(
-                    resource = Res.drawable.help,
-                    size = 20.dp,
-                    color = colors.menuBarIconColor,
-                    modifier = Modifier.padding(5.dp)
-                        .clickable {
-                            isShowHelpWindow = true
-                        }
-                )
-                AppImage(
-                    resource = Res.drawable.setting,
-                    size = 20.dp,
-                    color = colors.menuBarIconColor,
-                    modifier = Modifier.padding(5.dp)
-                        .clickable {
-                            isShowSettingWindow = true
-                        }
-                )
             }
 
-            AppMainContent(
-                selectedFilePath = selectedFilePath,
-                fileViewState = fileViewState,
-                isSoftWrapEnabled = isSoftWrapEnabled,
-                dismissSelectionMenuKey = dismissSelectionMenuKey,
-                onExitApplication = onExitApplication,
-                onSelectFile = { file ->
-                    selectedFileName = file?.name ?: ""
-                    selectedFilePath = file?.path ?: ""
-                },
-                modifier = Modifier.focusRequester(viewerFocusRequester)
-            )
+            Box(Modifier.fillMaxSize()) {
+                AppMainContent(
+                    selectedFilePath = selectedFilePath,
+                    fileViewState = fileViewState,
+                    isSoftWrapEnabled = isSoftWrapEnabled,
+                    dismissSelectionMenuKey = dismissSelectionMenuKey,
+                    onExitApplication = onExitApplication,
+                    onShowHelpWindow = { isShowHelpWindow = true },
+                    onSelectFile = { file ->
+                        selectedFileName = file?.name ?: ""
+                        selectedFilePath = file?.path ?: ""
+                    },
+                    toastManager = toastManager,
+                    modifier = Modifier.focusRequester(viewerFocusRequester)
+                )
+
+                AppToastOverlay(toastManager = toastManager, modifier = Modifier.fillMaxSize())
+            }
 
             HelpWindow(isVisible = isShowHelpWindow, onClose = { isShowHelpWindow = false })
             AboutWindow(isVisible = isShowAboutWindow, onClose = { isShowAboutWindow = false })
@@ -188,14 +217,16 @@ fun App(onExitApplication: () -> Unit = {}) {
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-private fun AppMainContent(
+private fun WindowScope.AppMainContent(
     modifier: Modifier = Modifier,
     selectedFilePath: String,
     fileViewState: FileViewState,
     isSoftWrapEnabled: Boolean,
     dismissSelectionMenuKey: Int,
     onExitApplication: () -> Unit,
+    onShowHelpWindow: () -> Unit,
     onSelectFile: (File?) -> Unit,
+    toastManager: ToastManager,
 ) {
     val colors = LocalColor.current
 
@@ -204,6 +235,7 @@ private fun AppMainContent(
     val viewerFocusRequester = remember { FocusRequester() }
     val emptyFileFocusRequester = remember { FocusRequester() }
     val openFileCoroutineScope = rememberCoroutineScope()
+    var isShowOpenFileDialog by remember { mutableStateOf<Boolean>(false) }
     var shouldFocusViewerAfterSelect by remember { mutableStateOf(false) }
     var filePager: GiantFileTextPager? by remember { mutableStateOf(null) }
 
@@ -269,6 +301,20 @@ private fun AppMainContent(
         return null
     }
 
+    LaunchedEffect(isShowOpenFileDialog) {
+        if (isShowOpenFileDialog) {
+            val file = FileKit.openFilePicker(title = "Open text file")
+            isShowOpenFileDialog = false
+            file ?: return@LaunchedEffect
+            onSelectFile(File(file.path))
+            shouldFocusViewerAfterSelect = true
+        }
+    }
+
+    val onOpenFileClick = {
+        isShowOpenFileDialog = true
+    }
+
     LaunchedEffect(selectedFilePath) {
         resetSearchResultState()
     }
@@ -279,6 +325,15 @@ private fun AppMainContent(
         }
     }
 
+    fun showErrorToast(message: String) {
+        toastManager.showToast(message)
+    }
+
+    @Composable
+    fun showEmptyFileView() {
+        onSelectFile(null)
+    }
+
     Column(modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -286,15 +341,15 @@ private fun AppMainContent(
                 .weight(1f)
                 .onExternalDrag(
                     onDragStart = { drag ->
-                        println("drag: $drag | ${drag.dragData}")
+                        log.d("drag: $drag | ${drag.dragData}")
                     },
                     onDrop = { drop ->
-                        println("drop: $drop | ${drop.dragData}")
+                        log.d("drop: $drop | ${drop.dragData}")
                         if (drop.dragData is DragData.FilesList) {
-                            println("drop files: ${(drop.dragData as DragData.FilesList).readFiles()}")
+                            log.i("drop files: ${(drop.dragData as DragData.FilesList).readFiles()}")
                             val uri = URI((drop.dragData as DragData.FilesList).readFiles().first())
 
-                            println("f: ${uri.scheme} ${File(uri).absolutePath}")
+                            log.i("f: ${uri.scheme} ${File(uri).absolutePath}")
                             onSelectFile(File(uri))
                             shouldFocusViewerAfterSelect = true
                         }
@@ -310,44 +365,47 @@ private fun AppMainContent(
                 EmptyFileView(
                     modifier = Modifier
                         .onPreviewKeyEvent { e ->
-                            if (
-                                e.type == KeyEventType.KeyDown &&
-                                e.key == Key.Q
-                            ) {
-                                onExitApplication()
-                                true
-                            } else {
-                                false
+                            if (e.type != KeyEventType.KeyDown) {
+                                return@onPreviewKeyEvent false
+                            }
+                            when {
+//                                e.key == Key.H -> {
+//                                    onShowHelpWindow()
+//                                    true
+//                                }
+                                e.key == Key.Enter -> {
+                                    onOpenFileClick()
+                                    true
+                                }
+                                e.key == Key.Q -> {
+                                    onExitApplication()
+                                    true
+                                }
+                                else -> false
                             }
                         }
                         .focusRequester(emptyFileFocusRequester)
                         .focusable(),
-                    onOpenFileClick = {
-                        openFileCoroutineScope.launch {
-                            val file = FileKit.openFilePicker(title = "Open text file") ?: return@launch
-                            onSelectFile(File(file.path))
-                            shouldFocusViewerAfterSelect = true
-                        }
-                    }
+                    onOpenFileClick = onOpenFileClick
                 )
-                onSelectFile(null)
+//                onSelectFile(null)
                 return@Box
             }
 
             val file = File(selectedFilePath)
             if (!file.exists()) {
-                ErrorView(message = "The selected object no longer exists")
-                onSelectFile(null)
+                showEmptyFileView()
+                showErrorToast("The selected object no longer exists")
                 return@Box
             }
             if (!file.isFile) {
-                ErrorView(message = "The selected object is not a file")
-                onSelectFile(null)
+                showEmptyFileView()
+                showErrorToast("The selected object is not a file")
                 return@Box
             }
             if (!file.canRead()) {
-                ErrorView(message = "The selected file is not readable")
-                onSelectFile(null)
+                showEmptyFileView()
+                showErrorToast("The selected file is not readable")
                 return@Box
             }
 
@@ -365,6 +423,7 @@ private fun AppMainContent(
                 isSoftWrapEnabled = isSoftWrapEnabled,
                 filePath = selectedFilePath,
                 highlightByteRange = highlightByteRange,
+                toastManager = toastManager,
                 onPagerReady = { filePager = it },
                 onNavigate = { searchCursor = it },
                 onDocumentContentChanged = {
@@ -383,6 +442,7 @@ private fun AppMainContent(
                         isSearchBackwardDefault = (it == SearchMode.Backward)
                     }
                 },
+                onHelpRequest = onShowHelpWindow,
                 dismissSelectionMenuKey = dismissSelectionMenuKey,
                 bottomContent = {
                     if (isSearchBarVisible) {
@@ -434,7 +494,7 @@ private fun AppMainContent(
                                 isSearchError = false
                                 if (!result.isEmpty()) {
                                     searchCursor = result.start
-                                    println("search found at $result")
+                                    log.d("search found at $result")
                                     pager.moveToRowOfBytePosition(result.start)
                                 } else {
                                     searchCursor = pager.fileReader.contentStartBytePosition
@@ -465,7 +525,7 @@ private fun AppMainContent(
                                     isSearchError = false
                                     if (!result.isEmpty()) {
                                         searchCursor = result.start
-                                        println("search found at $result")
+                                        log.d("search found at $result")
                                         pager.moveToRowOfBytePosition(result.start)
                                     } else {
                                         searchCursor = fileViewState.fileLength

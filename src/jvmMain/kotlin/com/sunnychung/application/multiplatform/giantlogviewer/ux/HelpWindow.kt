@@ -56,7 +56,7 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
         state = WindowState(
             position = WindowPosition.Aligned(Alignment.Center),
             width = 720.dp,
-            height = 560.dp,
+            height = 580.dp,
         ),
         onKeyEvent = { e ->
             if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) {
@@ -81,6 +81,7 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
                     append(" style")
                 },
                 keyBindings = listOf(
+                    KeyBinding("h", "Show this Help window"),
                     KeyBinding("↓", "Next row"),
                     KeyBinding("↑", "Previous row"),
                     KeyBinding("→", "Scroll right one window"),
@@ -113,6 +114,8 @@ fun HelpWindow(isVisible: Boolean, onClose: () -> Unit) {
 //                    KeyBinding("Shift-←", "Scroll left one character"),
                     KeyBinding("Alt/Option-↓", "One window forward"),
                     KeyBinding("Alt/Option-↑", "One window backward"),
+                    KeyBinding("Page Down", "One window forward"),
+                    KeyBinding("Page Up", "One window backward"),
                     KeyBinding("Ctrl/Command-↓", "End of file"),
                     KeyBinding("Ctrl/Command-↑", "Start of file"),
                     KeyBinding("Ctrl/Command-F", "Search forward"),

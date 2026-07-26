@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -74,6 +75,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.WindowScope
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.absolutePath
@@ -90,10 +92,12 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.TextEncoding
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.io.displayName
 import com.sunnychung.application.multiplatform.giantlogviewer.io.selectableTextEncodings
+import com.sunnychung.application.multiplatform.giantlogviewer.io.setClipboardText
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.util.GraphemeClusters
 import com.sunnychung.application.multiplatform.giantlogviewer.util.formatByteSize
+import com.sunnychung.application.multiplatform.giantlogviewer.util.log
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.AppFont
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalColor
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.local.LocalFont
@@ -125,8 +129,7 @@ import kotlin.math.floor
 private const val SELECTION_AUTOSCROLL_INTERVAL_MILLIS = 50L
 private const val SELECTION_AUTOSCROLL_MAX_ROWS_PER_TICK = 8L
 private const val TEXT_COPY_LIMIT_BYTES = 5 * BYTES_PER_MIB
-private const val TOAST_DURATION_MILLIS = 3_000L
-private const val TOAST_FADE_OUT_MILLIS = 580L
+const val HORIZONTAL_SCROLL_MULTIPLIER = 20f
 
 private fun PointerEvent.isColumnSelectionModifierPressed(): Boolean {
     return keyboardModifiers.isAltPressed || keyboardModifiers.isAltGraphPressed
@@ -135,18 +138,20 @@ private fun PointerEvent.isColumnSelectionModifierPressed(): Boolean {
 // TODO onPagerReady is an anti-pattern -- reverse of data flow. refactor it.
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, TemporaryBigTextApi::class)
 @Composable
-fun GiantTextViewer(
+fun WindowScope.GiantTextViewer(
     modifier: Modifier,
     fileViewState: FileViewState,
     isSoftWrapEnabled: Boolean,
     filePath: String,
     refreshKey: Int = 0,
     highlightByteRange: LongRange,
+    toastManager: ToastManager,
     onPagerReady: (GiantFileTextPager?) -> Unit,
     onNavigate: (bytePosition: Long) -> Unit,
     onDocumentContentChanged: () -> Unit,
     onCloseFile: () -> Unit = {},
     onSearchRequest: (SearchMode) -> Unit,
+    onHelpRequest: () -> Unit = {},
     dismissSelectionMenuKey: Int = 0,
     bottomContent: @Composable () -> Unit = {},
     shouldRequestFocus: Boolean = true,
@@ -154,11 +159,11 @@ fun GiantTextViewer(
 ) {
     val file = File(filePath)
     if (!file.isFile) {
-        println("File is not a file")
+        log.w("File is not a file")
         return
     }
 
-    println("recompose $filePath $refreshKey")
+    log.d("recompose $filePath $refreshKey")
 
     var contentComponentWidth by remember { mutableIntStateOf(0) }
     var contentComponentHeight by remember { mutableIntStateOf(0) }
@@ -225,15 +230,8 @@ fun GiantTextViewer(
     var selectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(Offset.Zero) }
     var pendingSelectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Offset?>(null) }
     var selectedSelectionMenuItemIndex by remember(filePath, refreshKey, encodingReloadKey) { mutableIntStateOf(0) }
-    var toastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
-    var displayedToastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
-    var isToastVisible by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
     var copySelectionJob by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Job?>(null) }
     var keyboardShortcutFocusRequest by remember(filePath, refreshKey, encodingReloadKey) { mutableIntStateOf(0) }
-    val toastAlpha by animateFloatAsState(
-        targetValue = if (isToastVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = (if (isToastVisible) 200L else TOAST_FADE_OUT_MILLIS).toInt()),
-    )
 
     val (contentWidth, isContentWidthLatest) = debouncedStateOf(200.milliseconds(), tolerateCount = 1, filePager) {
         contentComponentWidth
@@ -330,7 +328,7 @@ fun GiantTextViewer(
         if (job?.isActive == true) {
             job.cancel()
             copySelectionJob = null
-            toastMessage = "Copy cancelled"
+            toastManager.showToast("Copy cancelled")
         }
     }
 
@@ -344,7 +342,7 @@ fun GiantTextViewer(
         val knownSelectedLength = (currentSelection as? TextSelection.Contiguous)?.range?.let {
             it.forwardLength()
         }
-        toastMessage = "Copying selection..."
+        toastManager.showToast("Copying selection...", isPersistent = true)
         val copyJob = coroutineScope.launch(start = CoroutineStart.LAZY) {
             try {
                 val copiedSelection = withContext(Dispatchers.IO) {
@@ -367,29 +365,34 @@ fun GiantTextViewer(
                     }
                 }
                 val copiedLength = copiedSelection.byteLength
-                clipboardManager.setText(AnnotatedString(text = copiedSelection.text))
+                setClipboardText(copiedSelection.text) {
+                    clipboardManager.setText(AnnotatedString(text = it))
+                }
                 val isTrimmed = when {
                     knownSelectedLength != null -> knownSelectedLength > copiedLength
                     else -> copiedLength >= TEXT_COPY_LIMIT_BYTES.toLong()
                 }
+                val copiedLengthFormatted = NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)
                 if (isTrimmed) {
-                    toastMessage = if (currentSelection is TextSelection.Column) {
-                        "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes."
-                    } else {
-                        "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes." +
-                            "\nConsider copying to a file instead."
-                    }
+                    toastManager.showToast(
+                        if (currentSelection is TextSelection.Column) {
+                            "Copied text was trimmed to $copiedLengthFormatted bytes."
+                        } else {
+                            "Copied text was trimmed to $copiedLengthFormatted bytes." +
+                                "\nConsider copying to a file instead."
+                        }
+                    )
                 } else {
-                    toastMessage = "Copied ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes."
+                    toastManager.showToast("Copied $copiedLengthFormatted bytes.")
                 }
             } catch (_: CancellationException) {
                 if (copySelectionJob == this.coroutineContext[Job]) {
-                    toastMessage = "Copy cancelled"
+                    toastManager.showToast("Copy cancelled")
                 }
             } catch (e: Throwable) {
                 e.printStackTrace()
                 if (copySelectionJob == this.coroutineContext[Job]) {
-                    toastMessage = "Failed to copy selection"
+                    toastManager.showToast("Failed to copy selection")
                 }
             } finally {
                 if (copySelectionJob == this.coroutineContext[Job]) {
@@ -462,10 +465,10 @@ fun GiantTextViewer(
                 withContext(Dispatchers.IO) {
                     copySelectionToFile(destination)
                 }
-                toastMessage = "Selection copied to ${destination.name}"
+                toastManager.showToast("Selection copied to ${destination.name}")
             } catch (e: Throwable) {
                 e.printStackTrace()
-                toastMessage = "Failed to copy selection to a file"
+                toastManager.showToast("Failed to copy selection to a file")
             } finally {
                 onComplete()
             }
@@ -657,22 +660,6 @@ fun GiantTextViewer(
         }
     }
 
-    LaunchedEffect(toastMessage) {
-        val message = toastMessage ?: return@LaunchedEffect
-        displayedToastMessage = message
-        isToastVisible = true
-        if (message == "Copying selection...") {
-            return@LaunchedEffect
-        }
-        delay(TOAST_DURATION_MILLIS)
-        isToastVisible = false
-        delay(TOAST_FADE_OUT_MILLIS.toLong())
-        if (displayedToastMessage == message) {
-            displayedToastMessage = null
-            toastMessage = null
-        }
-    }
-
     fun selectionMenuItems(): List<SelectionMenuItem> {
         return buildList {
             add(SelectionMenuItem(buildAnnotatedString {
@@ -763,21 +750,26 @@ fun GiantTextViewer(
             if (!isKeyboardShortcutEnabled) {
                 return@onPreviewKeyEvent false
             }
-            println("onKeyEvent ${e.key}")
+            log.d("onKeyEvent ${e.key} ${e.type}")
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
                 val isCtrlCWithoutCommand = e.key == Key.C && e.isCtrlPressed && !e.isMetaPressed
+                var hasCancelledCopySelection = false
                 if ((e.key == Key.Escape || isCtrlCWithoutCommand) && copySelectionJob?.isActive == true) {
+                    log.i("cancelCopySelection")
                     cancelCopySelection()
-                    return@onPreviewKeyEvent true
+                    hasCancelledCopySelection = true
+                    // continue to remaining actions
                 }
 
                 if (e.key == Key.C && e.isCtrlOrCmdPressed()) {
                     if (isSelectionMenuVisible) {
                         dismissSelectionMenu()
                     }
-                    copySelection()
-                    return@onPreviewKeyEvent true
+                    if (!hasCancelledCopySelection) {
+                        copySelection()
+                    }
+                    // continue to remaining actions
                 }
 
                 if (isSelectionMenuVisible) {
@@ -809,8 +801,13 @@ fun GiantTextViewer(
                     }
                 }
                 when {
-                    e.key == Key.Q && !e.isCtrlPressed && !e.isMetaPressed && !e.isAltPressed && !e.isShiftPressed -> {
+                    e.key == Key.Q -> {
                         onCloseFile()
+                        return@onPreviewKeyEvent true
+                    }
+
+                    e.key == Key.H -> {
+                        onHelpRequest()
                         return@onPreviewKeyEvent true
                     }
 
@@ -823,6 +820,8 @@ fun GiantTextViewer(
 
                     e.key == Key.F -> return@onPreviewKeyEvent navigate { moveToNextPage() }
                     e.key == Key.B -> return@onPreviewKeyEvent navigate { moveToPrevPage() }
+                    e.key == Key.PageDown -> return@onPreviewKeyEvent navigate { moveToNextPage() }
+                    e.key == Key.PageUp -> return@onPreviewKeyEvent navigate { moveToPrevPage() }
                     e.key == Key.DirectionUp && e.isAltPressed -> return@onPreviewKeyEvent navigate { moveToPrevPage() }
                     e.key == Key.DirectionDown && e.isAltPressed -> return@onPreviewKeyEvent navigate { moveToNextPage() }
 
@@ -879,7 +878,7 @@ fun GiantTextViewer(
                         return@onPreviewKeyEvent false
                     }
                 }
-                println("onKeyEvent handled in ${KInstant.now() - startTime}")
+                log.d("onKeyEvent handled in ${KInstant.now() - startTime}")
                 return@onPreviewKeyEvent true
             }
             false
@@ -986,8 +985,8 @@ fun GiantTextViewer(
                                 acc + change.scrollDelta
                             }
                             val horizontalDelta = when {
-                                scrollDelta.x != 0f -> scrollDelta.x
-                                it.keyboardModifiers.isShiftPressed && scrollDelta.y != 0f -> scrollDelta.y
+                                scrollDelta.x != 0f -> scrollDelta.x * HORIZONTAL_SCROLL_MULTIPLIER
+                                it.keyboardModifiers.isShiftPressed && scrollDelta.y != 0f -> scrollDelta.y * HORIZONTAL_SCROLL_MULTIPLIER
                                 else -> 0f
                             }
                             if (horizontalDelta != 0f) {
@@ -1138,16 +1137,6 @@ fun GiantTextViewer(
                                 .width(240.dp)
                         )
                     }
-
-                    displayedToastMessage?.let {
-                        ToastMessage(
-                            message = it,
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 16.dp)
-                                .graphicsLayer { alpha = toastAlpha }
-                        )
-                    }
                 }
 
                 if (!isSoftWrapEnabled) {
@@ -1187,27 +1176,29 @@ fun GiantTextViewer(
                     }
             )
 
-            println("prepare rendering in ${KInstant.now() - startTime}")
+            log.v("prepare rendering in ${KInstant.now() - startTime}")
         }
 
         bottomContent()
 
-        GiantTextViewerStatusBar(
-            filePager = filePager,
-            fileLength = fileLength,
-            lastModifiedMillis = lastModifiedMillis,
-            selectedTextEncoding = selectedTextEncoding,
-            resolvedTextEncoding = fileReader.resolvedTextEncoding,
-            onSelectTextEncoding = {
-                if (it != selectedTextEncoding || it == TextEncoding.Auto) {
-                    reloadFileForEncoding(it)
-                }
-            },
-            onMenuActionComplete = ::requestKeyboardShortcutFocusRestore,
-            modifier = Modifier.onPointerEvent(eventType = PointerEventType.Press) {
-                dismissSelectionMenu()
-            },
-        )
+        WindowDraggableArea {
+            GiantTextViewerStatusBar(
+                filePager = filePager,
+                fileLength = fileLength,
+                lastModifiedMillis = lastModifiedMillis,
+                selectedTextEncoding = selectedTextEncoding,
+                resolvedTextEncoding = fileReader.resolvedTextEncoding,
+                onSelectTextEncoding = {
+                    if (it != selectedTextEncoding || it == TextEncoding.Auto) {
+                        reloadFileForEncoding(it)
+                    }
+                },
+                onMenuActionComplete = ::requestKeyboardShortcutFocusRestore,
+                modifier = Modifier.onPointerEvent(eventType = PointerEventType.Press) {
+                    dismissSelectionMenu()
+                },
+            )
+        }
     }
 
     LaunchedEffect(filePath, refreshKey, encodingReloadKey, shouldRequestFocus) {
@@ -1241,9 +1232,9 @@ fun GiantTextViewer(
 
     DisposableEffect(fileReader) {
         onDispose {
-            println("Disposing ${fileReader.filePath}")
+            log.d("Disposing ${fileReader.filePath}")
             fileReader.close()
-            println("Disposed ${fileReader.filePath}")
+            log.d("Disposed ${fileReader.filePath}")
         }
     }
 }
