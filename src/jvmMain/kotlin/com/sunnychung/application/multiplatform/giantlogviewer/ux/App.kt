@@ -72,8 +72,16 @@ import java.util.regex.Pattern
 @OptIn(ExperimentalComposeUiApi::class)
 fun WindowScope.App(
     onExitApplication: () -> Unit = {},
-    initialFilePath: String? = null
+    initialFilePath: String? = null,
+    toastManager: ToastManager = remember { ToastManager() },
+    initialToastMessage: String? = null,
 ) {
+    LaunchedEffect(initialToastMessage) {
+        initialToastMessage?.let {
+            toastManager.showToast(it)
+        }
+    }
+
     var selectedFileName by remember { mutableStateOf("") }
     var isShowHelpWindow by remember { mutableStateOf(false) }
     var isShowAboutWindow by remember { mutableStateOf(false) }
@@ -181,19 +189,24 @@ fun WindowScope.App(
                 }
             }
 
-            AppMainContent(
-                selectedFilePath = selectedFilePath,
-                fileViewState = fileViewState,
-                isSoftWrapEnabled = isSoftWrapEnabled,
-                dismissSelectionMenuKey = dismissSelectionMenuKey,
-                onExitApplication = onExitApplication,
-                onShowHelpWindow = { isShowHelpWindow = true },
-                onSelectFile = { file ->
-                    selectedFileName = file?.name ?: ""
-                    selectedFilePath = file?.path ?: ""
-                },
-                modifier = Modifier.focusRequester(viewerFocusRequester)
-            )
+            Box(Modifier.fillMaxSize()) {
+                AppMainContent(
+                    selectedFilePath = selectedFilePath,
+                    fileViewState = fileViewState,
+                    isSoftWrapEnabled = isSoftWrapEnabled,
+                    dismissSelectionMenuKey = dismissSelectionMenuKey,
+                    onExitApplication = onExitApplication,
+                    onShowHelpWindow = { isShowHelpWindow = true },
+                    onSelectFile = { file ->
+                        selectedFileName = file?.name ?: ""
+                        selectedFilePath = file?.path ?: ""
+                    },
+                    toastManager = toastManager,
+                    modifier = Modifier.focusRequester(viewerFocusRequester)
+                )
+
+                AppToastOverlay(toastManager = toastManager, modifier = Modifier.fillMaxSize())
+            }
 
             HelpWindow(isVisible = isShowHelpWindow, onClose = { isShowHelpWindow = false })
             AboutWindow(isVisible = isShowAboutWindow, onClose = { isShowAboutWindow = false })
@@ -213,6 +226,7 @@ private fun WindowScope.AppMainContent(
     onExitApplication: () -> Unit,
     onShowHelpWindow: () -> Unit,
     onSelectFile: (File?) -> Unit,
+    toastManager: ToastManager,
 ) {
     val colors = LocalColor.current
 
@@ -311,6 +325,15 @@ private fun WindowScope.AppMainContent(
         }
     }
 
+    fun showErrorToast(message: String) {
+        toastManager.showToast(message)
+    }
+
+    @Composable
+    fun showEmptyFileView() {
+        onSelectFile(null)
+    }
+
     Column(modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -365,24 +388,24 @@ private fun WindowScope.AppMainContent(
                         .focusable(),
                     onOpenFileClick = onOpenFileClick
                 )
-                onSelectFile(null)
+//                onSelectFile(null)
                 return@Box
             }
 
             val file = File(selectedFilePath)
             if (!file.exists()) {
-                ErrorView(message = "The selected object no longer exists")
-                onSelectFile(null)
+                showEmptyFileView()
+                showErrorToast("The selected object no longer exists")
                 return@Box
             }
             if (!file.isFile) {
-                ErrorView(message = "The selected object is not a file")
-                onSelectFile(null)
+                showEmptyFileView()
+                showErrorToast("The selected object is not a file")
                 return@Box
             }
             if (!file.canRead()) {
-                ErrorView(message = "The selected file is not readable")
-                onSelectFile(null)
+                showEmptyFileView()
+                showErrorToast("The selected file is not readable")
                 return@Box
             }
 
@@ -400,6 +423,7 @@ private fun WindowScope.AppMainContent(
                 isSoftWrapEnabled = isSoftWrapEnabled,
                 filePath = selectedFilePath,
                 highlightByteRange = highlightByteRange,
+                toastManager = toastManager,
                 onPagerReady = { filePager = it },
                 onNavigate = { searchCursor = it },
                 onDocumentContentChanged = {

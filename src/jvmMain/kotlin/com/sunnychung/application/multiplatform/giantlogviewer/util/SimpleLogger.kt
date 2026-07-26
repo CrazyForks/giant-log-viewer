@@ -1,30 +1,36 @@
 package com.sunnychung.application.multiplatform.giantlogviewer.util
 
+import com.sunnychung.lib.multiplatform.kdatetime.KInstant
+
 class SimpleLogger(var logLevel: LogLevel) {
 
     fun v(message: String) {
         if (logLevel > LogLevel.VERBOSE) return
-        println(message)
+        log(message)
     }
 
     fun d(message: String) {
         if (logLevel > LogLevel.DEBUG) return
-        println(message)
+        log(message)
     }
 
     fun i(message: String) {
         if (logLevel > LogLevel.INFO) return
-        println(message)
+        log(message)
     }
 
     fun w(message: String) {
         if (logLevel > LogLevel.WARN) return
-        println(message)
+        log(message)
     }
 
     fun e(message: String) {
         if (logLevel > LogLevel.ERROR) return
-        println(message)
+        log(message)
+    }
+
+    private fun log(message: String) {
+        println("${KInstant.now()} | $message")
     }
 }
 
@@ -32,4 +38,4 @@ enum class LogLevel {
     VERBOSE, DEBUG, INFO, WARN, ERROR
 }
 
-val log = SimpleLogger(LogLevel.DEBUG)
+val log = SimpleLogger(LogLevel.VERBOSE)

@@ -146,6 +146,7 @@ fun WindowScope.GiantTextViewer(
     filePath: String,
     refreshKey: Int = 0,
     highlightByteRange: LongRange,
+    toastManager: ToastManager,
     onPagerReady: (GiantFileTextPager?) -> Unit,
     onNavigate: (bytePosition: Long) -> Unit,
     onDocumentContentChanged: () -> Unit,
@@ -230,15 +231,15 @@ fun WindowScope.GiantTextViewer(
     var selectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(Offset.Zero) }
     var pendingSelectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Offset?>(null) }
     var selectedSelectionMenuItemIndex by remember(filePath, refreshKey, encodingReloadKey) { mutableIntStateOf(0) }
-    var toastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
-    var displayedToastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
-    var isToastVisible by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
+//    var toastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
+//    var displayedToastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
+//    var isToastVisible by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
     var copySelectionJob by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Job?>(null) }
     var keyboardShortcutFocusRequest by remember(filePath, refreshKey, encodingReloadKey) { mutableIntStateOf(0) }
-    val toastAlpha by animateFloatAsState(
-        targetValue = if (isToastVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = (if (isToastVisible) 200L else TOAST_FADE_OUT_MILLIS).toInt()),
-    )
+//    val toastAlpha by animateFloatAsState(
+//        targetValue = if (isToastVisible) 1f else 0f,
+//        animationSpec = tween(durationMillis = (if (isToastVisible) 200L else TOAST_FADE_OUT_MILLIS).toInt()),
+//    )
 
     val (contentWidth, isContentWidthLatest) = debouncedStateOf(200.milliseconds(), tolerateCount = 1, filePager) {
         contentComponentWidth
@@ -335,7 +336,7 @@ fun WindowScope.GiantTextViewer(
         if (job?.isActive == true) {
             job.cancel()
             copySelectionJob = null
-            toastMessage = "Copy cancelled"
+            toastManager.showToast("Copy cancelled")
         }
     }
 
@@ -349,7 +350,7 @@ fun WindowScope.GiantTextViewer(
         val knownSelectedLength = (currentSelection as? TextSelection.Contiguous)?.range?.let {
             it.forwardLength()
         }
-        toastMessage = "Copying selection..."
+        toastManager.showToast("Copying selection...")
         val copyJob = coroutineScope.launch(start = CoroutineStart.LAZY) {
             try {
                 val copiedSelection = withContext(Dispatchers.IO) {
@@ -377,24 +378,27 @@ fun WindowScope.GiantTextViewer(
                     knownSelectedLength != null -> knownSelectedLength > copiedLength
                     else -> copiedLength >= TEXT_COPY_LIMIT_BYTES.toLong()
                 }
+                val copiedLengthFormatted = NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)
                 if (isTrimmed) {
-                    toastMessage = if (currentSelection is TextSelection.Column) {
-                        "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes."
-                    } else {
-                        "Copied text was trimmed to ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes." +
-                            "\nConsider copying to a file instead."
-                    }
+                    toastManager.showToast(
+                        if (currentSelection is TextSelection.Column) {
+                            "Copied text was trimmed to $copiedLengthFormatted bytes."
+                        } else {
+                            "Copied text was trimmed to $copiedLengthFormatted bytes." +
+                                "\nConsider copying to a file instead."
+                        }
+                    )
                 } else {
-                    toastMessage = "Copied ${NumberFormat.getIntegerInstance(Locale.US).format(copiedLength)} bytes."
+                    toastManager.showToast("Copied $copiedLengthFormatted bytes.")
                 }
             } catch (_: CancellationException) {
                 if (copySelectionJob == this.coroutineContext[Job]) {
-                    toastMessage = "Copy cancelled"
+                    toastManager.showToast("Copy cancelled")
                 }
             } catch (e: Throwable) {
                 e.printStackTrace()
                 if (copySelectionJob == this.coroutineContext[Job]) {
-                    toastMessage = "Failed to copy selection"
+                    toastManager.showToast("Failed to copy selection")
                 }
             } finally {
                 if (copySelectionJob == this.coroutineContext[Job]) {
@@ -467,10 +471,10 @@ fun WindowScope.GiantTextViewer(
                 withContext(Dispatchers.IO) {
                     copySelectionToFile(destination)
                 }
-                toastMessage = "Selection copied to ${destination.name}"
+                toastManager.showToast("Selection copied to ${destination.name}")
             } catch (e: Throwable) {
                 e.printStackTrace()
-                toastMessage = "Failed to copy selection to a file"
+                toastManager.showToast("Failed to copy selection to a file")
             } finally {
                 onComplete()
             }
@@ -662,21 +666,21 @@ fun WindowScope.GiantTextViewer(
         }
     }
 
-    LaunchedEffect(toastMessage) {
-        val message = toastMessage ?: return@LaunchedEffect
-        displayedToastMessage = message
-        isToastVisible = true
-        if (message == "Copying selection...") {
-            return@LaunchedEffect
-        }
-        delay(TOAST_DURATION_MILLIS)
-        isToastVisible = false
-        delay(TOAST_FADE_OUT_MILLIS.toLong())
-        if (displayedToastMessage == message) {
-            displayedToastMessage = null
-            toastMessage = null
-        }
-    }
+//    LaunchedEffect(toastMessage) {
+//        val message = toastMessage ?: return@LaunchedEffect
+//        displayedToastMessage = message
+//        isToastVisible = true
+//        if (message == "Copying selection...") {
+//            return@LaunchedEffect
+//        }
+//        delay(TOAST_DURATION_MILLIS)
+//        isToastVisible = false
+//        delay(TOAST_FADE_OUT_MILLIS.toLong())
+//        if (displayedToastMessage == message) {
+//            displayedToastMessage = null
+//            toastMessage = null
+//        }
+//    }
 
     fun selectionMenuItems(): List<SelectionMenuItem> {
         return buildList {
@@ -768,7 +772,7 @@ fun WindowScope.GiantTextViewer(
             if (!isKeyboardShortcutEnabled) {
                 return@onPreviewKeyEvent false
             }
-            log.d("onKeyEvent ${e.key}")
+            log.d("onKeyEvent ${e.key} ${e.type}")
             val startTime = KInstant.now()
             if (e.type == KeyEventType.KeyDown) {
                 val isCtrlCWithoutCommand = e.key == Key.C && e.isCtrlPressed && !e.isMetaPressed
@@ -1156,15 +1160,15 @@ fun WindowScope.GiantTextViewer(
                         )
                     }
 
-                    displayedToastMessage?.let {
-                        ToastMessage(
-                            message = it,
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 16.dp)
-                                .graphicsLayer { alpha = toastAlpha }
-                        )
-                    }
+//                    displayedToastMessage?.let {
+//                        ToastMessage(
+//                            message = it,
+//                            modifier = Modifier
+//                                .align(Alignment.BottomCenter)
+//                                .padding(bottom = 16.dp)
+//                                .graphicsLayer { alpha = toastAlpha }
+//                        )
+//                    }
                 }
 
                 if (!isSoftWrapEnabled) {
