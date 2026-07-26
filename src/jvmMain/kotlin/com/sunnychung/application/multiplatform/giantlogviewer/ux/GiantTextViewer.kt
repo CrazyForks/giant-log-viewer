@@ -128,8 +128,6 @@ import kotlin.math.floor
 private const val SELECTION_AUTOSCROLL_INTERVAL_MILLIS = 50L
 private const val SELECTION_AUTOSCROLL_MAX_ROWS_PER_TICK = 8L
 private const val TEXT_COPY_LIMIT_BYTES = 5 * BYTES_PER_MIB
-private const val TOAST_DURATION_MILLIS = 3_000L
-private const val TOAST_FADE_OUT_MILLIS = 580L
 const val HORIZONTAL_SCROLL_MULTIPLIER = 20f
 
 private fun PointerEvent.isColumnSelectionModifierPressed(): Boolean {
@@ -231,15 +229,8 @@ fun WindowScope.GiantTextViewer(
     var selectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(Offset.Zero) }
     var pendingSelectionMenuPosition by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Offset?>(null) }
     var selectedSelectionMenuItemIndex by remember(filePath, refreshKey, encodingReloadKey) { mutableIntStateOf(0) }
-//    var toastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
-//    var displayedToastMessage by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<String?>(null) }
-//    var isToastVisible by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf(false) }
     var copySelectionJob by remember(filePath, refreshKey, encodingReloadKey) { mutableStateOf<Job?>(null) }
     var keyboardShortcutFocusRequest by remember(filePath, refreshKey, encodingReloadKey) { mutableIntStateOf(0) }
-//    val toastAlpha by animateFloatAsState(
-//        targetValue = if (isToastVisible) 1f else 0f,
-//        animationSpec = tween(durationMillis = (if (isToastVisible) 200L else TOAST_FADE_OUT_MILLIS).toInt()),
-//    )
 
     val (contentWidth, isContentWidthLatest) = debouncedStateOf(200.milliseconds(), tolerateCount = 1, filePager) {
         contentComponentWidth
@@ -665,22 +656,6 @@ fun WindowScope.GiantTextViewer(
             delay(SELECTION_AUTOSCROLL_INTERVAL_MILLIS)
         }
     }
-
-//    LaunchedEffect(toastMessage) {
-//        val message = toastMessage ?: return@LaunchedEffect
-//        displayedToastMessage = message
-//        isToastVisible = true
-//        if (message == "Copying selection...") {
-//            return@LaunchedEffect
-//        }
-//        delay(TOAST_DURATION_MILLIS)
-//        isToastVisible = false
-//        delay(TOAST_FADE_OUT_MILLIS.toLong())
-//        if (displayedToastMessage == message) {
-//            displayedToastMessage = null
-//            toastMessage = null
-//        }
-//    }
 
     fun selectionMenuItems(): List<SelectionMenuItem> {
         return buildList {
@@ -1159,16 +1134,6 @@ fun WindowScope.GiantTextViewer(
                                 .width(240.dp)
                         )
                     }
-
-//                    displayedToastMessage?.let {
-//                        ToastMessage(
-//                            message = it,
-//                            modifier = Modifier
-//                                .align(Alignment.BottomCenter)
-//                                .padding(bottom = 16.dp)
-//                                .graphicsLayer { alpha = toastAlpha }
-//                        )
-//                    }
                 }
 
                 if (!isSoftWrapEnabled) {
