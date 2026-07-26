@@ -14,10 +14,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.dp
 import com.sunnychung.lib.multiplatform.kdatetime.KInstant
 import kotlinx.coroutines.CoroutineScope
@@ -54,6 +57,7 @@ class ToastManager {
 }
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 fun AppToastOverlay(
     toastManager: ToastManager,
     modifier: Modifier = Modifier,
@@ -93,6 +97,8 @@ fun AppToastOverlay(
                     .padding(bottom = 48.dp)
                     .graphicsLayer { alpha = toastAlpha }
                     .focusProperties { canFocus = false }
+                    .onPointerEvent(PointerEventType.Enter) { state.setPointerOnToast(true) }
+                    .onPointerEvent(PointerEventType.Exit) { state.setPointerOnToast(false) }
                     .clickable(enabled = state.isToastDismissible) { state.dismiss(message) },
             )
         }
@@ -124,6 +130,7 @@ private class ToastOverlayState(
         private set
 
     private var toastJob: Job? = null
+    private var isPointerOnToast = false
 
     fun show(message: String, isPersistent: Boolean) = replaceToastJob {
         if (isToastVisible || displayedMessage != null) {
@@ -139,9 +146,16 @@ private class ToastOverlayState(
             awaitCancellation()
         }
         delay(TOAST_DURATION_MILLIS)
+        while (isPointerOnToast) {
+            delay(200L)
+        }
         isToastVisible = false
         delay(TOAST_FADE_OUT_MILLIS)
         consumeDisplayedToast(message)
+    }
+
+    fun setPointerOnToast(isPointerOnToast: Boolean) {
+        this.isPointerOnToast = isPointerOnToast
     }
 
     fun dismiss(message: String) {
@@ -170,6 +184,7 @@ private class ToastOverlayState(
         if (displayedMessage == message) {
             displayedMessage = null
             isToastDismissible = true
+            isPointerOnToast = false
             toastManager.consume(message)
         }
     }
