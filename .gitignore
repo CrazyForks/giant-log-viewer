@@ -3,6 +3,7 @@
 /doc/output
 local.properties
 /.gradle-codex
+/testdata
 
 ### JVM ###
 *.hprof

@@ -183,9 +183,10 @@ internal fun readSelectedText(
     }
 
     if (selection is TextSelection.Contiguous) {
-        return readSelectedTextRanges(
+        // Keep the decoded String as the result instead of duplicating it through a full-size builder.
+        return readSelectedTextRange(
             fileReader = fileReader,
-            ranges = listOf(selection.range).filterNot { it.isEmpty() },
+            range = selection.range,
             maxByteLength = maxByteLength,
         )
     }
@@ -200,7 +201,6 @@ internal fun readSelectedText(
         return SelectionText("", 0L)
     }
 
-    val ranges = ArrayList<LongRange>(1)
     val result = StringBuilder()
     var copiedBytes = 0L
     var isFirstRow = true
@@ -211,12 +211,10 @@ internal fun readSelectedText(
         if (!shouldContinue()) {
             return@forEachViewportRowBetween false
         }
-        ranges.clear()
         val rangeInRow = selection.rangeInRow(row, filePager)
         if (rangeInRow.isEmpty() && row.text.isEmpty() && row.visibleStartBytePosition != row.physicalLineStartBytePosition) {
             return@forEachViewportRowBetween true
         }
-        ranges += rangeInRow
         if (!isFirstRow) {
             if (copiedBytes + fileReader.lineFeedByteLength > maxByteLength) {
                 return@forEachViewportRowBetween false
@@ -226,9 +224,9 @@ internal fun readSelectedText(
         }
         isFirstRow = false
 
-        val rowText = readSelectedTextRanges(
+        val rowText = readSelectedTextRange(
             fileReader = fileReader,
-            ranges = ranges.filterNot { it.isEmpty() },
+            range = rangeInRow,
             maxByteLength = maxByteLength - copiedBytes,
         )
         result.append(rowText.text)
@@ -239,46 +237,29 @@ internal fun readSelectedText(
     return SelectionText(result.toString(), copiedBytes)
 }
 
-private fun readSelectedTextRanges(
+private fun readSelectedTextRange(
     fileReader: GiantFileReader,
-    ranges: List<LongRange>,
+    range: LongRange,
     maxByteLength: Long,
 ): SelectionText {
-    val result = StringBuilder()
-    var copiedBytes = 0L
-
-    ranges.forEachIndexed { index, range ->
-        if (index > 0) {
-            if (copiedBytes + fileReader.lineFeedByteLength > maxByteLength) {
-                return SelectionText(result.toString(), copiedBytes)
-            }
-            result.append('\n')
-            copiedBytes += fileReader.lineFeedByteLength
-        }
-
-        val availableBytes = maxByteLength - copiedBytes
-        val requestedLength = range.forwardLength()
-            .coerceAtMost(availableBytes)
-            .coerceAtMost(Int.MAX_VALUE.toLong())
-            .toInt()
-        if (requestedLength <= 0) {
-            return@forEachIndexed
-        }
-
-        val window = fileReader.readTextUncached(range.start, requestedLength)
-        val copiedLength = window.byteRange.forwardLength()
-            .coerceAtMost(range.forwardLength())
-        val (text, byteLength) = trimTextToByteLength(
-            text = window.text,
-            byteLength = copiedLength,
-            maxByteLength = availableBytes.coerceAtMost(range.forwardLength()),
-            encodedLength = fileReader::encodedLength,
-        )
-        result.append(text)
-        copiedBytes += byteLength
+    val requestedLength = range.forwardLength()
+        .coerceAtMost(maxByteLength)
+        .coerceAtMost(Int.MAX_VALUE.toLong())
+        .toInt()
+    if (requestedLength <= 0) {
+        return SelectionText("", 0L)
     }
 
-    return SelectionText(result.toString(), copiedBytes)
+    val window = fileReader.readTextUncached(range.start, requestedLength)
+    val copiedLength = window.byteRange.forwardLength()
+        .coerceAtMost(range.forwardLength())
+    val (text, byteLength) = trimTextToByteLength(
+        text = window.text,
+        byteLength = copiedLength,
+        maxByteLength = maxByteLength.coerceAtMost(range.forwardLength()),
+        encodedLength = fileReader::encodedLength,
+    )
+    return SelectionText(text, byteLength)
 }
 
 private fun rowIndexAtY(y: Float, rowHeight: Float, lastRowIndex: Int): Int {

@@ -92,6 +92,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.TextEncoding
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
 import com.sunnychung.application.multiplatform.giantlogviewer.io.displayName
 import com.sunnychung.application.multiplatform.giantlogviewer.io.selectableTextEncodings
+import com.sunnychung.application.multiplatform.giantlogviewer.io.setClipboardText
 import com.sunnychung.application.multiplatform.giantlogviewer.layout.MonospaceBidirectionalTextLayouter
 import com.sunnychung.application.multiplatform.giantlogviewer.model.SearchMode
 import com.sunnychung.application.multiplatform.giantlogviewer.util.GraphemeClusters
@@ -364,7 +365,9 @@ fun WindowScope.GiantTextViewer(
                     }
                 }
                 val copiedLength = copiedSelection.byteLength
-                clipboardManager.setText(AnnotatedString(text = copiedSelection.text))
+                setClipboardText(copiedSelection.text) {
+                    clipboardManager.setText(AnnotatedString(text = it))
+                }
                 val isTrimmed = when {
                     knownSelectedLength != null -> knownSelectedLength > copiedLength
                     else -> copiedLength >= TEXT_COPY_LIMIT_BYTES.toLong()
