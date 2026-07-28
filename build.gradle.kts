@@ -113,6 +113,9 @@ tasks.create("createBuildProperties") {
             val p = Properties()
             p["version"] = project.version.toString()
             p["git.commit"] = getGitCommitHash()
+            p["isRelease"] = gradle.taskGraph.allTasks
+                .any { it.name.contains("release", ignoreCase = true) }
+                .toString()
             p.store(writer, null)
         }
     }

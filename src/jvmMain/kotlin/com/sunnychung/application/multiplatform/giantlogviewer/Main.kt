@@ -7,6 +7,7 @@ import com.sunnychung.application.giantlogviewer.generated.resources.Res
 import com.sunnychung.application.giantlogviewer.generated.resources.appicon
 import com.sunnychung.application.multiplatform.giantlogviewer.extension.setMinimumSize
 import com.sunnychung.application.multiplatform.giantlogviewer.manager.AppContext
+import com.sunnychung.application.multiplatform.giantlogviewer.manager.MetadataManager
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.App
 import com.sunnychung.application.multiplatform.giantlogviewer.util.LogLevel
 import com.sunnychung.application.multiplatform.giantlogviewer.util.log
@@ -17,6 +18,15 @@ import java.io.File
 
 fun main(args: Array<String>) {
     System.setProperty("apple.awt.application.appearance", "system")
+
+    // set initial logging level before loading AppContext
+    MetadataManager().let { tempMetadataManager ->
+        log.logLevel = if (tempMetadataManager.isReleaseBuild) {
+            LogLevel.WARN
+        } else {
+            LogLevel.VERBOSE
+        }
+    }
 
     // Parse log level from command line arguments before initializing app
     val initialToastMessage = parseLogLevel(args)
