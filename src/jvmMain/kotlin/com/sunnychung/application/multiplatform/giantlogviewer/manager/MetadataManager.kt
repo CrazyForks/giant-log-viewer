@@ -28,4 +28,10 @@ class MetadataManager {
             checkOrLoadProperties()
             return properties.getProperty("git.commit")
         }
+
+    val isReleaseBuild: Boolean
+        get() {
+            checkOrLoadProperties()
+            return properties.getProperty("isRelease").toBoolean()
+        }
 }

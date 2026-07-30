@@ -96,7 +96,7 @@ fun AboutWindow(isVisible: Boolean, onClose: () -> Unit) {
                     )
                 )
                 BasicText(
-                    "${buildInfo.version} (${buildInfo.gitCommitHash})",
+                    "${buildInfo.version} (${buildInfo.gitCommitHash}) ${if (buildInfo.isReleaseBuild) "Release" else "Debug"}",
                     style = TextStyle(
                         fontSize = 12.sp,
                         fontFamily = font,

@@ -100,7 +100,7 @@ fun WindowScope.App(
         ?.let { File(it).let { file -> file.isFile && file.canRead() } }
         ?: false
 
-    print("App recompose - $themePreference")
+    log.d("App recompose - $themePreference")
 
     CompositionLocalProvider(LocalColor provides themePreference.toColorTheme()) {
         val colors = LocalColor.current
