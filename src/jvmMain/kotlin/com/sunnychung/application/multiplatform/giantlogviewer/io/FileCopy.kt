@@ -10,6 +10,7 @@ fun copyFileByteRange(
     source: File,
     destination: File,
     byteRange: LongRange,
+    shouldContinue: () -> Boolean = { true },
 ) {
     val start = byteRange.start.coerceAtLeast(0L)
     val endExclusive = byteRange.endExclusive.coerceAtLeast(start)
@@ -18,7 +19,7 @@ fun copyFileByteRange(
             val buffer = ByteArray(FILE_COPY_BUFFER_BYTES)
             var remainingBytes = endExclusive - start
             input.channel.position(start)
-            while (remainingBytes > 0L) {
+            while (remainingBytes > 0L && shouldContinue()) {
                 val bytesToRead = remainingBytes
                     .coerceAtMost(buffer.size.toLong())
                     .toInt()

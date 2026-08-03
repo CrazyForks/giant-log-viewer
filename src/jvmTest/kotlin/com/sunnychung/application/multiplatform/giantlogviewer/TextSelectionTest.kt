@@ -11,10 +11,12 @@ import com.sunnychung.application.multiplatform.giantlogviewer.ux.TextSelection
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.buildColumnSelection
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.rangeInRow
 import com.sunnychung.application.multiplatform.giantlogviewer.ux.readSelectedText
+import com.sunnychung.application.multiplatform.giantlogviewer.ux.writeColumnSelectionText
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class TextSelectionTest {
 
@@ -296,6 +298,46 @@ class TextSelectionTest {
 
                 assertEquals("abcdef", copied.text)
                 assertEquals(2, shouldContinueCalls)
+            }
+        }
+    }
+
+    @Test
+    @Suppress("KotlinConstantConditions")
+    fun columnSelectionFileCopyIsNotLimitedToFiveMibibytes() {
+        val lineLength = 2_000
+        val lineCount = 10_000
+        val copyLineLength = 800
+        val content = List(lineCount) { "x".repeat(lineLength) }.joinToString(separator = "\n", postfix = "\n")
+        createTestFile(content) { file ->
+            val viewportWidth = 900 * 10 + 5
+            assertTrue(viewportWidth >= copyLineLength * 10)
+            createPager(
+                filePath = file.absolutePath,
+                viewportWidth = viewportWidth,
+                softWrapEnabled = false,
+            ).use { (reader, pager) ->
+                val lastRowStart = (lineLength + 1L) * (lineCount - 1L)
+                val selection = TextSelection.Column(
+                    anchor = ColumnSelectionPoint(
+                        bytePosition = 0L,
+                        rowStartBytePosition = 0L,
+                        x = 0.1f,
+                    ),
+                    focus = ColumnSelectionPoint(
+                        bytePosition = lastRowStart + copyLineLength,
+                        rowStartBytePosition = lastRowStart,
+                        x = copyLineLength * 10f /* pager hardcodes each char width to be 10f */ + 0.1f,
+                    ),
+                )
+                val output = StringBuilder()
+
+                val copiedByteLength = writeColumnSelectionText(reader, pager, selection, output)
+
+                val expectedLength = copyLineLength.toLong() * lineCount + lineCount - 1L
+                assertTrue(expectedLength > 5 * 1024 * 1024L)
+                assertEquals(expectedLength, copiedByteLength)
+                assertEquals(expectedLength, output.length.toLong())
             }
         }
     }

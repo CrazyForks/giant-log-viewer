@@ -194,14 +194,38 @@ internal fun readSelectedText(
     if (selection !is TextSelection.Column) {
         return SelectionText("", 0L)
     }
+
+    val result = StringBuilder()
+    val copiedBytes = writeColumnSelectionText(
+        fileReader = fileReader,
+        filePager = filePager,
+        selection = selection,
+        appendable = result,
+        maxByteLength = maxByteLength,
+        shouldContinue = shouldContinue,
+    )
+
+    return SelectionText(result.toString(), copiedBytes)
+}
+
+internal fun writeColumnSelectionText(
+    fileReader: GiantFileReader,
+    filePager: GiantFileTextPager,
+    selection: TextSelection.Column,
+    appendable: Appendable,
+    maxByteLength: Long = Long.MAX_VALUE,
+    shouldContinue: () -> Boolean = { true },
+): Long {
+    if (selection.isEmpty() || maxByteLength <= 0L) {
+        return 0L
+    }
     if (!filePager.isSoftWrapEnabled &&
         (!filePager.isPhysicalLineStartBytePosition(selection.anchor.rowStartBytePosition) ||
             !filePager.isPhysicalLineStartBytePosition(selection.focus.rowStartBytePosition))
     ) {
-        return SelectionText("", 0L)
+        return 0L
     }
 
-    val result = StringBuilder()
     var copiedBytes = 0L
     var isFirstRow = true
     filePager.forEachViewportRowBetween(
@@ -219,7 +243,7 @@ internal fun readSelectedText(
             if (copiedBytes + fileReader.lineFeedByteLength > maxByteLength) {
                 return@forEachViewportRowBetween false
             }
-            result.append('\n')
+            appendable.append('\n')
             copiedBytes += fileReader.lineFeedByteLength
         }
         isFirstRow = false
@@ -229,12 +253,12 @@ internal fun readSelectedText(
             range = rangeInRow,
             maxByteLength = maxByteLength - copiedBytes,
         )
-        result.append(rowText.text)
+        appendable.append(rowText.text)
         copiedBytes += rowText.byteLength
         copiedBytes < maxByteLength
     }
 
-    return SelectionText(result.toString(), copiedBytes)
+    return copiedBytes
 }
 
 private fun readSelectedTextRange(
