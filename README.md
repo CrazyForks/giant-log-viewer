@@ -9,16 +9,16 @@ This software loads instantly with same low memory footprint regardless of a 4 M
 
 ## Limitations
 - Supports UTF-8, UTF-8 with BOM (since v2.0.0), UTF-16 (since v2.0.0) and ASCII text files only
-- Doesn't work if there is a long line (>= 1 MB) in the file
-- Emoji sequences are not supported -- it would be displayed as multiple emoji characters
+- ~~Doesn't work if there is a long line (>= 1 MB) in the file~~ (supported since v2.0.0)
+- ~~Emoji sequences are not supported -- it would be displayed as multiple emoji characters~~ (supported since v2.0.0)
 - Doesn't work if your OS has no GUI
-- Doesn't work if you are not using Windows, macOS nor Linux
+- Doesn't work if you are not using Windows (ARM64 is currently not supported but on roadmap), macOS nor Linux
 - Not as powerful as `less` yet
 
 ## How to Use
 
-1. Drag and drop a UTF-8 / ASCII text file to this application.
-2. Navigate with a keyboard. The `less` key bindings can be used. Click the "?" button in the top-right corner for the full keymap.
+1. Drag and drop a UTF-8 / UTF-16 / ASCII text file to this application.
+2. Navigate with a keyboard or a pointer. The `less` key bindings can be used. Click the "?" button in the top-right corner for the full keymap.
 
 ## Sponsors
 
@@ -35,6 +35,8 @@ Builds are built by GitHub runners which take the source code published here dir
 ## Contributions
 
 Welcome! Note that this project is [slightly reluctant to use third-party libraries](build.gradle.kts).
+
+You are also welcomed to contribute ideas or feature requests.
 
 ## How to Build
 

@@ -6,22 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+
+## [2.0.0] -- 2026-08-03
+
+I am delighted to announce a well-rounded major release of Giant Log Viewer! Windows builds are now verified and signed by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
 _Changes since 1.2.0_
 
 ### Added
 - Follow new appends to the end of the opened file (Shift-F)
 - Support UTF-8 with BOM and UTF-16 encodings in additional to current encoding support of UTF-8 without BOM
 - Long lines (>= 1 MB per line) are now supported
+- Emoji sequences are now supported
 - Status bar, which shows current byte range, last modified date time and current encoding
 - Shift-Click to extend selection
 - Dragging out of view to scroll and extend selection
 - Copy selection(s) to a file
 - Option to turn off soft wrapping
-- Column / Vertical selection
-- Press Q to close the file or the application
+- Column / Vertical selection ([Shift-]Alt/Option-Click)
+- Press Q, to close the file or the application, and other key shortcuts (see "Help")
 - Support opening a file via command line, "Open with" from file explorer or other external applications ![Open by Windows Explorer](doc/media/open-with.png)
 
 ### Changed
+- As part of the support of Emoji sequences, partial Emoji search would no longer match
 - New appends to the opened file are not automatically followed anymore
 - After going pass the last search result, searching reversely would first visit the last search result
 - Copy text length limit is increased from 1 MB to 5 MB
