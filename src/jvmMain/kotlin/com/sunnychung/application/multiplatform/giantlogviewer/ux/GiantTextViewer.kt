@@ -90,6 +90,7 @@ import com.sunnychung.application.multiplatform.giantlogviewer.io.GiantFileTextP
 import com.sunnychung.application.multiplatform.giantlogviewer.io.ResolvedTextEncoding
 import com.sunnychung.application.multiplatform.giantlogviewer.io.TextEncoding
 import com.sunnychung.application.multiplatform.giantlogviewer.io.Viewport
+import com.sunnychung.application.multiplatform.giantlogviewer.io.ViewportRow
 import com.sunnychung.application.multiplatform.giantlogviewer.io.displayName
 import com.sunnychung.application.multiplatform.giantlogviewer.io.selectableTextEncodings
 import com.sunnychung.application.multiplatform.giantlogviewer.io.setClipboardText
@@ -118,6 +119,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -422,26 +424,29 @@ fun WindowScope.GiantTextViewer(
         }
     }
 
-    fun copySelectionToFile(destination: File) {
-        when (val currentSelection = currentSelection()) {
+    fun copySelectionToFile(
+        destination: File,
+        selection: TextSelection,
+        shouldContinue: () -> Boolean,
+    ) {
+        when (selection) {
             TextSelection.Empty -> Unit
             is TextSelection.Contiguous -> copyFileByteRange(
                 source = file,
                 destination = destination,
-                byteRange = currentSelection.range,
+                byteRange = selection.range,
+                shouldContinue = shouldContinue,
             )
             is TextSelection.Column -> {
-                val selectedText = readSelectedText(
-                    fileReader = fileReader,
-                    filePager = filePager,
-                    selection = currentSelection,
-                    maxByteLength = if (currentSelection is TextSelection.Column) {
-                        TEXT_COPY_LIMIT_BYTES.toLong()
-                    } else {
-                        Long.MAX_VALUE
-                    },
-                )
-                destination.writeText(selectedText.text, fileReader.resolvedTextEncoding.charset)
+                destination.bufferedWriter(fileReader.resolvedTextEncoding.charset).use { writer ->
+                    writeColumnSelectionText(
+                        fileReader = fileReader,
+                        filePager = filePager,
+                        selection = selection,
+                        appendable = writer,
+                        shouldContinue = shouldContinue,
+                    )
+                }
             }
         }
     }
@@ -460,16 +465,39 @@ fun WindowScope.GiantTextViewer(
 
     fun copySelectionToFileWithPrompt(onComplete: () -> Unit = {}) {
         coroutineScope.launch {
+            val currentJob = currentCoroutineContext()[Job]
             try {
                 val destination = chooseSelectionDestination() ?: return@launch
+                val selection = currentSelection()
+                if (selection.isEmpty()) {
+                    return@launch
+                }
+                copySelectionJob?.cancel()
+                copySelectionJob = currentJob
+                toastManager.showToast("Copying selection...", isPersistent = true)
                 withContext(Dispatchers.IO) {
-                    copySelectionToFile(destination)
+                    val copyContext = currentCoroutineContext()
+                    copySelectionToFile(
+                        destination = destination,
+                        selection = selection,
+                        shouldContinue = { copyContext.isActive },
+                    )
+                    copyContext.ensureActive()
                 }
                 toastManager.showToast("Selection copied to ${destination.name}")
+            } catch (_: CancellationException) {
+                if (copySelectionJob == currentJob) {
+                    toastManager.showToast("Copy cancelled")
+                }
             } catch (e: Throwable) {
                 e.printStackTrace()
-                toastManager.showToast("Failed to copy selection to a file")
+                if (copySelectionJob == currentJob) {
+                    toastManager.showToast("Failed to copy selection to a file")
+                }
             } finally {
+                if (copySelectionJob == currentJob) {
+                    copySelectionJob = null
+                }
                 onComplete()
             }
         }
@@ -708,7 +736,7 @@ fun WindowScope.GiantTextViewer(
             point.y in topLeft.y..topLeft.y + menuHeightPx
     }
 
-    fun viewportRowAt(point: Offset): com.sunnychung.application.multiplatform.giantlogviewer.io.ViewportRow? {
+    fun viewportRowAt(point: Offset): ViewportRow? {
         val rows = filePager.viewportRows
         if (rows.isEmpty()) {
             return null
