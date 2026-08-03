@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "com.sunnychung.application"
-version = "2.0.0-SNAPSHOT"
+version = "2.0.0"
 
 repositories {
     mavenCentral()
@@ -73,7 +73,7 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Giant Log Viewer"
             vendor = "Sunny Chung"
-            copyright = "© 2025 Sunny Chung"
+            copyright = "© 2026 Sunny Chung"
             packageVersion = distributionVersion
 
             macOS {
